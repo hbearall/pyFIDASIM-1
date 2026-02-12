@@ -27,7 +27,7 @@ def get_reference_equilibrium(program = '20180823.035', time = [1.,2.]):
         url = genURL1+ver+genURL3
         url = 'http://archive-webapi.ipp-hgw.mpg.de'+url+ '_signal.json'+filter_query
         req = rq.get(url=url, headers={'Accept':'application/json'})
-        b0scaling = (req.json())['values'][0]
+        b0scaling = (req.json())['values'][0] if req.json()['values'] else 1
     else:
         print('no discharge found')
         vmecID = ''
@@ -35,15 +35,18 @@ def get_reference_equilibrium(program = '20180823.035', time = [1.,2.]):
     
     return vmecID, b0scaling
 
-def get_wout(vmecID = 'w7x_ref_66', savenc = True):
+def get_wout(vmecID = 'w7x_ref_66', woutpath = './Data/', savenc = True):
     from osa import Client
     vmec = Client('http://esb.ipp-hgw.mpg.de:8280/services/vmec_v5?wsdl')
     wout_netcdf = vmec.service.getVmecOutputNetcdf(vmecID)
+    if woutpath[-1] != '/':
+        woutpath += '/'
+    woutpath += 'wout_'+vmecID+'.nc'
     if savenc:
-        file = open('./Data/wout_'+vmecID+'.nc', 'wb')
+        file = open(woutpath, 'wb')
         file.write(wout_netcdf)
         file.close()
-    woutpath = './Data/wout_'+vmecID+'.nc'
+    
     return wout_netcdf, woutpath
 
 def get_minor_radius(vmecID = 'w7x_ref_66'):
@@ -88,10 +91,10 @@ def equilibrium(progID='', timerange=[], woutpath = '', vmecID = '',
     if progID != '':
         vmecID, b0_factor = get_reference_equilibrium(progID)
         print(progID+' - '+vmecID)
-        wout, woutpath = get_wout(vmecID)
+        wout, _ = get_wout(vmecID, woutpath)
     elif vmecID != '':
         print(vmecID)
-        wout, woutpath = get_wout(vmecID)
+        wout, _ = get_wout(vmecID, woutpath)
     elif woutpath != '':
         # vmecID = 'userDefinedWout'
         vmecID = woutpath
@@ -100,7 +103,9 @@ def equilibrium(progID='', timerange=[], woutpath = '', vmecID = '',
             vmecID = vmecID[ind+1:]
             ind = vmecID.find('/')   
         vmecID = '_' + vmecID[0:vmecID.find('.nc')]
-        woutpath = woutpath
+        # woutpath = woutpath
+        print(vmecID)
+        print(woutpath)
     else:
         print('No info found for equilibrium generation.')
         print('Use standard wout file (standard config)')

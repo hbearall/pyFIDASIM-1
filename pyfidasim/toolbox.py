@@ -2,9 +2,7 @@ import numpy as np
 import numpy.polynomial.hermite as hermite
 import scipy.integrate as integrate
 import scipy.optimize as optimize
-import os
-import sys
-import pickle
+import os, sys, pickle, h5py
 from pathlib import Path
 try:
     import numba
@@ -97,6 +95,30 @@ def rotate_plane(x, y, Arot, Brot, p):
     zz = np.reshape(zz, [len(x), -1])
     return xx, yy, zz
 
+def load_dict_hdf5(filename):
+    if not isinstance(filename, Path):
+        filename = Path(filename)
+    filename = filename.resolve()
+    if not filename.exists():
+        print(filename.as_posix())
+        raise FileNotFoundError(f'{filename.as_posix()} does not exist')
+    print(f'Loading {filename.as_posix()}')
+    with h5py.File(filename.as_posix(), 'r') as h5file:
+        return recursively_load_dict_contents_from_group(h5file, '/')
+    
+def recursively_load_dict_contents_from_group(h5file, path):
+    ans = {}
+    for key, item in h5file[path].items():
+        if isinstance(item, h5py._hl.dataset.Dataset):
+            if isinstance(item[()], bytes):
+                ans[key] = item[()].decode('utf8')
+            else:
+                ans[key] = item[()]
+        elif isinstance(item, h5py._hl.group.Group):
+            ans[key] = recursively_load_dict_contents_from_group(
+                h5file, path + key + '/')
+    return ans
+
 def load_dict(filename):
     if not isinstance(filename, Path):
         filename = Path(filename)
@@ -105,11 +127,21 @@ def load_dict(filename):
         print(filename.as_posix())
         raise FileNotFoundError(f'{filename.as_posix()} does not exist')
     print(f'Loading {filename.as_posix()}')
+    
     with open(filename, 'rb') as f:
-        data_dict = pickle.load(f)
-    return(data_dict)
-    
-    
+        head = f.read(16)
+        if head.startswith(b'\x89HDF'):
+            print('This is a hdf5 file')
+            data_dict = load_dict_hdf5(filename)
+        elif head.startswith(b'\x80'):
+            print('This is a pkl file')
+            try:
+                data_dict = pickle.load(f)
+            except:
+                import joblib
+                data_dict = joblib.load(filename)
+    return data_dict
+
 def save_dict(data_dict, filename):
     if not isinstance(filename, Path):
         filename = Path(filename)
@@ -684,6 +716,48 @@ def get_energy_component(wavel, Coef):
 
     return yfinal
 
+# def plot_profiles(profiles,savefig=False):
+#     import matplotlib.pyplot as plt
+#     # plot radial profiles
+#     fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, sharex=True, figsize=([7., 7.]))
+#     plt.subplots_adjust(hspace=.01,wspace=0.01)
+#     ax1.grid()
+#     ax2.grid()
+#     ax3.grid()
+#     # plot electron profile
+#     ax1.plot(profiles['ra'],profiles['dene'] /1.e14,color='k',label=r'n$_e$')
+#     # plot main-ion density
+#     if 'denp' in profiles:
+#         ax1.plot(profiles['ra'],profiles['denp'] /1.e14,label=r'n$_i$')
+    
+#     # plot impurity profile    
+#     if 'imp_dens' in profiles:
+#         ax1.plot(profiles['ra'],profiles['imp_dens'] /1.e14,label=r'n$_{imp}$')
+    
+
+#     ax1.legend(loc="lower left")
+#     ax1.set_ylabel(r'$10^{20}\mathrm{m}^{-3}$')
+#     ax1.set_ylim(bottom=0)
+#     #ax1.set_ylim([0, 1.])
+#     # plot temperature profile
+#     ax2.plot(profiles['ra'], profiles['te'], color='k', label=r'$T_e$')
+#     ax2.plot(profiles['ra'], profiles['ti'], color='r', label=r'$T_i$')
+#     #ax2.set_ylim([0, 6])
+#     ax2.set_ylim(bottom=0)    
+#     ax2.set_ylabel(r'$\mathrm{keV}$') 
+#     ax2.legend(loc=1) 
+    
+    
+ 
+#     ax3.plot(profiles['ra'], profiles['omega']/1.e3, label='rotation frequency')
+#     ax3.set_ylabel(r'krad/s') 
+    
+    
+#     ax3.set_xlim([0, 1.1])
+#     ax3.set_xlabel('r/a')
+#     fig.tight_layout()
+#     if savefig:
+#         plt.savefig('ne_Te_input_profiles.png')
 
 
 

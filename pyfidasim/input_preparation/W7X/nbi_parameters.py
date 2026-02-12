@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Feb 12 11:24:43 2021
+
+@author: bgeiger3
+"""
 #----------------------------------------------------------------------------------
 #- routines to read NBI parameter information for a given shot and temporal range -
 #----------------------------------------------------------------------------------
@@ -26,10 +32,10 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import copy
 
 # import the routines for loading & saving hdf5 files
 import pyfidasim
+# from pyfidasim.hdf5 import save_dict, load_dict
 from pyfidasim.toolbox import save_dict, load_dict
 
 
@@ -37,7 +43,7 @@ from pyfidasim.toolbox import save_dict, load_dict
 # routine to read the NBI parameters from the W7-X data base & a lookup table #
 ###############################################################################
 def nbi_parameters(shot_number = '20180920.042', t_start = 6.5, t_stop = 6.52, fractions = None, debug = False,default=False):
-     
+    defaultFractions = [0.3, 0.5, 0.2]
     if default:
         import copy
         nbi_params = {}
@@ -52,6 +58,8 @@ def nbi_parameters(shot_number = '20180920.042', t_start = 6.5, t_stop = 6.52, f
         for source in nbi_params['sources']:
             nbi_params[source] = copy.deepcopy(params)
         return nbi_params
+    if fractions == 'default':
+        fractions = defaultFractions
     
     # import 'custom' W7-X routines
     from w7xdia.nbi     import get_nspec_currentFractions
@@ -83,7 +91,6 @@ def nbi_parameters(shot_number = '20180920.042', t_start = 6.5, t_stop = 6.52, f
     routines['power'] ['Q7']  = get_source_7_power
     routines['power'] ['Q8']  = get_source_8_power
     routines['fractions']     = get_nspec_currentFractions
-
     # set up a dictionary to contain general source informations as well as the information which is later saved time resolved
     source_information                 = {}
     source_information['sources']      = ['Q7','Q8']#['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7', 'Q8']
@@ -187,20 +194,21 @@ def nbi_parameters(shot_number = '20180920.042', t_start = 6.5, t_stop = 6.52, f
         ##################################################
         # read the beam fractions from the look up table #
         ##################################################
-        
+
         # assess all the different sources
         if sour in sources:
             # read in the beam fractions for the given source only when None are passed
             if fractions == None:
                 try:
-                    from w7xdia import nbi as dia_nbi
-                    bfrac = dia_nbi.get_nspec_currentFractions(shot_number, sour)
-                    beam_fractions = np.nanmedian(bfrac[1], axis = 1)
-                    print('Read beam_fractions from W7X database for shot:%s'%shot_number)
-                except:
+                    t, sig, unc = get_nspec_currentFractions(shot_number, sour)
+                    indrange = np.where((t >= shot_information[1]) & (t <= shot_information[2]))[0]
+                    beam_fractions = []
+                    for ii in range(sig.shape[0]):
+                        beam_fractions = np.append(beam_fractions, np.mean(sig[ii, indrange]))
+                    print(beam_fractions)
+                    add_shot_beam_fractions(shot_number, beam_fractions, sour, overwrite = False)
+                except ValueError:
                     beam_fractions = read_beam_fractions(shot_number, sour)
-                    print('Found beam fractions fro local file for shot: %s'%shot_number)
-                print(beam_fractions)
             else:
                 beam_fractions = fractions
             # now also loop over all the NBI active points in time
@@ -261,13 +269,14 @@ def nbi_parameters(shot_number = '20180920.042', t_start = 6.5, t_stop = 6.52, f
                 
         # put together the file name and the path to the data folder
         # I tried making the path nicer but the other package caused unnecessary complications
-        file_path += '/examples/W7X/'
+        file_path += '/examples/W7X/Data/'
+        file_path = os.path.abspath(file_path)
         file_name = str(shot_information[0]) + '_' + str(int(round(PIT*1000))) + '_NBI_parameters.hdf5'
         # and save the dictionary as an hdf5 file - in try beacuse does work from any other directory
-        try:
-            save_dict(beam_information, file_path + file_name)
-        except OSError:
-            print('Failed at writing file due to assumed path structure')
+        # try:
+        #     save_dict(beam_information, file_path + os.sep + file_name)
+        # except OSError:
+        #     print('Failed at writing file due to assumed path structure')
             
     return beam_information
 
@@ -280,17 +289,18 @@ def read_beam_fractions(shot_number, source):
     
     # put together the path to the .hdf5 file
     path_name = os.path.dirname(pyfidasim.__file__)
-    path_name = os.path.abspath(os.path.join(path_name, os.pardir))
-    path_name += '/example/W7X/'
+    path_name = os.path.dirname(path_name)
+    path_name += '/examples/W7X/Data/'
+    path_name = os.path.abspath(path_name)
+    # path_name = os.path.abspath(os.path.join(path_name, os.pardir))
     
     # load the dictionary
-    data = load_dict(path_name + 'W7X_beam_fractions_lookup.hdf5')
+    data = load_dict(path_name + os.sep + 'W7X_beam_fractions_lookup.hdf5')
     
     # check whether data for the requested shot number is available
     try:
         beam_fractions  = data[shot_number][source]
-        return beam_fractions
-    
+        return beam_fractions        
     except:
         print('\nNo beam fractions for requested shot %s found in look up dictionary' % (shot_number))
         print('To add data, call add_shot_beam_fractions - path to data is:')
@@ -348,174 +358,12 @@ def add_shot_beam_fractions(shot_number, beam_fractions, source, overwrite = Fal
     # save the dict with the additional entry
     save_dict(data, path_name + file_name)
     
-def calc_arot_brot(direction):
-    assert(direction.size == 3)
-    y = direction[2]
-    x = np.sqrt(np.sum(direction[:]**2))
-    b = np.arctan2(y, x)
-    Arot = np.array([[np.cos(b), 0., np.sin(b)],
-                     [0., 1., 0.],
-                     [-np.sin(b), 0., np.cos(b)]])
-    y = direction[1]
-    x = direction[0]
-    a = np.arctan2(y, x)# - np.pi
-    Brot = np.array([[np.cos(a), -np.sin(a), 0.],
-                     [np.sin(a),  np.cos(a), 0.],
-                     [0., 0., 1.]])
-    return Arot, Brot
-
-
-def nbi_geometry():
-    """Fills a blank dictionary with nbi geometry related parameters.
-    
-    Returns
-    ----------
-    nbi_geometry : dictionary, nbi geometry parameters
-    """
-    
-    default_geometry = {
-        'ion_source_size': np.array([22.8, 50.6]), 
-        'focal_length': np.array([650., 700.]), 
-        'divergence': np.array([0.8, 0.8]) / 180 * np.pi, 
-        'aperture_1_rectangular' : True, 
-        'aperture_1_size': np.array([100., 100.]), 
-        'aperture_1_distance': 650., 
-        'aperture_1_offset': np.array([0., 0.]), 
-        'aperture_2_rectangular' : True, 
-        'aperture_2_size': np.array([100., 100.]), 
-        'aperture_2_distance': 650.,   # cm
-        'aperture_2_offset': np.array([0., 0.])
-    }
-    
-    Q1_geometry = copy.deepcopy(default_geometry)
-    Q1_geometry['ID'] = 'Q1'
-    Q1_geometry['source_position'] = np.array(
-        [607.5594, 1171.7889, 29.5000])  # cm
-    Q1_geometry['direction'] = np.array([-0.365400, -0.926946, -0.085174])
-    Arot, Brot = calc_arot_brot(Q1_geometry['direction'])
-    Q1_geometry['uvw_xyz_rot'] = Brot @ Arot
-
-    
-    Q2_geometry = copy.deepcopy(default_geometry)
-    Q2_geometry['ID'] = 'Q2'
-    Q2_geometry['source_position'] = np.array(
-        [692.2962, 1131.0989, 29.5000])  # cm
-    Q2_geometry['direction'] = np.array([-0.494953, -0.864735, -0.085174])
-    Arot, Brot = calc_arot_brot(Q2_geometry['direction'])
-    Q2_geometry['uvw_xyz_rot'] = Brot @ Arot
-    
-    
-    Q3_geometry = copy.deepcopy(default_geometry)
-    Q3_geometry['ID'] = 'Q3'
-    Q3_geometry['source_position'] = np.array(
-        [692.2962, 1131.0989, -90.5000])  # cm
-    Q3_geometry['direction'] = np.array([-0.494953, -0.864735, 0.085174])
-    Arot, Brot = calc_arot_brot(Q3_geometry['direction'])
-    Q3_geometry['uvw_xyz_rot'] = Brot @ Arot
-    
-    
-    Q4_geometry = copy.deepcopy(default_geometry)
-    Q4_geometry['ID'] = 'Q4'
-    Q4_geometry['source_position'] = np.array(
-        [607.5594, 1171.7889, -90.5000])  # cm
-    Q4_geometry['direction'] = np.array([-0.365400, -0.926946, 0.085174])
-    Arot, Brot = calc_arot_brot(Q4_geometry['direction'])
-    Q4_geometry['uvw_xyz_rot'] = Brot @ Arot
-    
-    
-    Q5_geometry = copy.deepcopy(default_geometry)
-    Q5_geometry['ID'] = 'Q5'
-    Q5_geometry['source_position'] = np.array(
-        [197.2344, 1305.1116, -29.5000])  # cm
-    Q5_geometry['direction'] = np.array([-0.249230, -0.964692, 0.085174])
-    Arot, Brot = calc_arot_brot(Q5_geometry['direction'])
-    Q5_geometry['uvw_xyz_rot'] = Brot @ Arot
-    
-    
-    
-    Q6_geometry = copy.deepcopy(default_geometry)
-    Q6_geometry['ID'] = 'Q6'
-    Q6_geometry['source_position'] = np.array(
-        [104.7639, 1321.9997, -29.5000])  # cm
-    Q6_geometry['direction'] = np.array([-0.107854, -0.990511, 0.085174])
-    Arot, Brot = calc_arot_brot(Q6_geometry['direction'])
-    Q6_geometry['uvw_xyz_rot'] = Brot @ Arot
-    
-    
-    Q7_geometry = copy.deepcopy(default_geometry)
-    Q7_geometry['ID'] = 'Q7'
-    Q7_geometry['source_position'] = np.array([104.27, 1317.11, 90.67])  # cm
-    Q7_geometry['direction'] = np.array([-0.1085, -0.99, -.085])
-    Arot, Brot = calc_arot_brot(Q7_geometry['direction'])
-    Q7_geometry['Arot'] = Arot
-    Q7_geometry['Brot'] = Brot
-    Q7_geometry['uvw_xyz_rot'] = Brot @ Arot######TODO 
-    Q7_geometry['aperture_1_distance']= 626.9   # cm
-    Q7_geometry['aperture_1_offset'] = np.array([1.7,-4.8])
-    Q7_geometry['aperture_1_size']   = np.array([34.1, 67.0])
-    
-    Q7_geometry['aperture_2_distance']= 708.4   # cm
-    Q7_geometry['aperture_2_offset'] = np.array([1.9,3.2])
-    Q7_geometry['aperture_2_size']   = np.array([34.1, 57.4])
-    
-    
-    Q8_geometry = copy.deepcopy(default_geometry)
-    Q8_geometry['ID'] = 'Q8'
-    Q8_geometry['source_position'] = np.array([195.96, 1300.37, 90.67])  # cm
-    Q8_geometry['direction'] = np.array([-0.2486, -0.9648, -.085])
-    Q8_geometry['aperture_1_distance']= 626.9   # cm
-    Q8_geometry['aperture_1_offset'] = np.array([5.6,-4.8])
-    Q8_geometry['aperture_1_size']   = np.array([34.1, 67.0])
-    
-    Q8_geometry['aperture_2_distance']= 708.4   # cm
-    Q8_geometry['aperture_2_offset'] = np.array([-5.9,3.2])
-    Q8_geometry['aperture_2_size']   = np.array([34.1, 57.4])
-    
-    Arot, Brot = calc_arot_brot(Q8_geometry['direction'])
-    Q8_geometry['Arot'] = Arot
-    Q8_geometry['Brot'] = Brot
-    Q8_geometry['uvw_xyz_rot'] = Brot @ Arot
-    
-    nbi_geometry = {}
-    nbi_geometry['sources'] = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7', 'Q8']
-    nbi_geometry['Q1'] = Q1_geometry
-    nbi_geometry['Q2'] = Q2_geometry
-    nbi_geometry['Q3'] = Q3_geometry
-    nbi_geometry['Q4'] = Q4_geometry
-    nbi_geometry['Q5'] = Q5_geometry
-    nbi_geometry['Q6'] = Q6_geometry
-    nbi_geometry['Q7'] = Q7_geometry
-    nbi_geometry['Q8'] = Q8_geometry
-    
-    return nbi_geometry
-
-def W7X_nbi(shot_number = '20180920.042', t_start = 6.5, t_stop = 6.52, fractions = None, debug = False,default=False):
-    nbigeom = nbi_geometry()
-    nbiparams = nbi_parameters(shot_number, t_start, t_stop, fractions, debug, default)
-    
-    nbi = {}
-    nbi['sources'] = nbiparams['sources']
-    for src in nbiparams['sources']:
-        #Combine Arot & Brot into one rotation matrix
-        nbi[src] = {}
-        nbi[src]['uvw_xyz_rot'] = nbigeom[src]['uvw_xyz_rot']
-        nbi[src]['aperture_1_distance'] = nbigeom[src]['aperture_1_distance']
-        nbi[src]['aperture_1_offset'] = nbigeom[src]['aperture_1_offset']
-        nbi[src]['aperture_1_rectangular'] = nbigeom[src]['aperture_1_rectangular']
-        nbi[src]['aperture_1_size'] = nbigeom[src]['aperture_1_size']
-        nbi[src]['aperture_2_distance'] = nbigeom[src]['aperture_2_distance']
-        nbi[src]['aperture_2_offset'] = nbigeom[src]['aperture_2_offset']
-        nbi[src]['aperture_2_rectangular'] = nbigeom[src]['aperture_2_rectangular']
-        nbi[src]['aperture_2_size'] = nbigeom[src]['aperture_2_size']
-        nbi[src]['direction'] = nbigeom[src]['direction']
-        nbi[src]['divergence'] = nbigeom[src]['divergence']
-        nbi[src]['focal_length'] = nbigeom[src]['focal_length']
-        nbi[src]['ion_source_size'] = nbigeom[src]['ion_source_size']
-        nbi[src]['source_position'] = nbigeom[src]['source_position']
-        
-        nbi[src]['current_fractions'] = nbiparams[src]['fraction']
-        nbi[src]['power'] = nbiparams[src]['power']
-        nbi[src]['voltage'] = nbiparams[src]['voltage']
-    
-    return nbi
-    
+##############
+# test input #
+##############
+if __name__ == '__main__':
+    # one source example
+    beam_information = nbi_parameters('20180920.042', t_start = 6.5, t_stop = 6.52, fractions=[0.3,0.5,0.2], debug = True)
+    # two source example
+    beam_information = nbi_parameters('20180918.046', t_start = 2.7, t_stop = 3.9, debug = True)
+    pass

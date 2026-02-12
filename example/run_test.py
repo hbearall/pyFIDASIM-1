@@ -4,13 +4,13 @@ import numpy as np
 import time
 
 # GUI Imports
-from PyQt6.QtWidgets import (
+from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QTreeWidget, QTreeWidgetItem, QHeaderView, QLineEdit, QDoubleSpinBox, 
     QSpinBox, QCheckBox, QPushButton, QLabel, QTabWidget, QSplitter, 
     QProgressBar, QMessageBox, QTextEdit
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
 # Matplotlib Integration
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas

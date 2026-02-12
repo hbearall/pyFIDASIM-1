@@ -1,6 +1,6 @@
 # run_gui.py
 import sys
-from PyQt6.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication
 # We need to import pyqtgraph to ensure it's found
 import pyqtgraph as pg
 

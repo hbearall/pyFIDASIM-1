@@ -1,9 +1,10 @@
 import numpy as np
 from pyfidasim.toolbox import radial_profile, load_dict
+from pathlib import Path
 
 def plasma_profiles_from_pkl(file='Data/W7Xprofiles.pkl', impurities = ['Carbon'],zimps=[6]):
      
-    profiles = load_dict(file)
+    profiles = load_dict(Path(file))
     profiles['omega'] = radial_profile(
         profiles['s'], f_0=0.5, mu=0.2, offset=0.1) * 1.e3  # [rad/s]
     profiles['ai'] = 1.

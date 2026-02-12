@@ -145,8 +145,6 @@ def load_tables(path_to_tables=None,pkl_filename='fidasim_tables.pkl'):
     else:
         print(tablespkl, 'does not exist.')
         raise
-        
-    return tables
 
 from numba import njit
 

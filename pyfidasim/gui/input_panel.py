@@ -1,5 +1,5 @@
 # gui/input_panel.py
-from PyQt6.QtWidgets import (
+from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QGroupBox, QFormLayout, QLineEdit,
     QCheckBox, QSpinBox, QDoubleSpinBox, QComboBox, QHBoxLayout, QPushButton, QFileDialog
 )
@@ -69,16 +69,16 @@ class InputPanel(QWidget):
         w7x_layout = QFormLayout()
 
         # --- LOS Settings ---
-        self.w7x_los_shot = QLineEdit("20180823.035")
-        self.w7x_los_head = QLineEdit("AEM21_HPPS7:")
-        self.w7x_los_file = QLineEdit("Data/losInfo_New_op2.txt")
+        self.w7x_los_shot = QLineEdit("20180919.039")
+        self.w7x_los_head = QLineEdit("AEA21_A:")
+        self.w7x_los_file = QLineEdit("//share.ipp-hgw.mpg.de/documents/xiha/Documents/Python_W7X/pyFIDASIM/example/Data/op12b_ils_geometry.txt")
         self.w7x_los_default = QCheckBox(); self.w7x_los_default.setChecked(False)
         self.w7x_los_new = QCheckBox(); self.w7x_los_new.setChecked(True)
 
         # --- Equilibrium Settings ---
         self.w7x_progID = QLineEdit("")
         self.w7x_vmecID = QLineEdit("")
-        self.w7x_eq_path = QLineEdit("")
+        self.w7x_eq_path = QLineEdit("//share.ipp-hgw.mpg.de/documents/xiha/Documents/Python_W7X/pyFIDASIM/example/Data/wout_w7x_ref_169.nc")
         self.w7x_extended_vmec_factor = QDoubleSpinBox(); self.w7x_extended_vmec_factor.setValue(1.0)
         self.w7x_b0_factor = QDoubleSpinBox(); self.w7x_b0_factor.setValue(1.0)
         self.w7x_drz = QDoubleSpinBox(); self.w7x_drz.setValue(2.0)
@@ -86,12 +86,12 @@ class InputPanel(QWidget):
         self.w7x_phi_ran_max = QDoubleSpinBox(); self.w7x_phi_ran_max.setValue(0.53)
 
         # --- Profile Settings ---
-        self.w7x_prof_path = QLineEdit("Data/W7Xprofiles.h5")
+        self.w7x_prof_path = QLineEdit("//share.ipp-hgw.mpg.de/documents/xiha\Documents/W7X_Analysis/BES/pyFIDASIM/20180919.039_3.6s/profiles.hdf5")
 
         # --- NBI Settings ---
-        self.w7x_shot_num = QLineEdit("20180920.042")
-        self.w7x_t_start = QDoubleSpinBox(); self.w7x_t_start.setValue(6.5)
-        self.w7x_t_stop = QDoubleSpinBox(); self.w7x_t_stop.setValue(6.52)
+        self.w7x_shot_num = QLineEdit("20180919.039")
+        self.w7x_t_start = QDoubleSpinBox(); self.w7x_t_start.setValue(3.5)
+        self.w7x_t_stop = QDoubleSpinBox(); self.w7x_t_stop.setValue(3.55)
         self.w7x_nbi_cur_frac = QLineEdit("")
         self.w7x_nbi_cur_frac.setToolTip("Comma-separated floats for current fractions")
         self.w7x_nbi_debug = QCheckBox()
@@ -240,7 +240,7 @@ class InputPanel(QWidget):
         layout = QFormLayout()
         self.impurities = QLineEdit("Carbon")
         self.impurities.setToolTip("Enter comma-separated list, e.g., Carbon,Boron,Neon")
-        self.path_to_tables = QLineEdit("")
+        self.path_to_tables = QLineEdit("//share.ipp-hgw.mpg.de/documents/xiha/Documents/Python_W7X/pyFIDASIM/pyfidasim/tables")
         self.load_raw_data = QCheckBox(); self.load_raw_data.setChecked(True)
         layout.addRow("Impurities:", self.impurities)
         layout.addRow("Path to Tables:", self._create_file_browser(self.path_to_tables, "Select Custom Tables Directory", directory=True))

@@ -1,11 +1,11 @@
 # gui/worker.py
 import time
 import traceback
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal
 
 from pyfidasim.input_prep import input_prep
 from pyfidasim.main import calc_attenuation
-import numpy as np
+# import numpy as np
 
 class PrepWorker(QObject):
     """

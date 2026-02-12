@@ -480,10 +480,12 @@ def input_prep(FIDASIM):
                 spec = start_spec(FIDASIM)
             if FIDASIM.get("calc_extended_emission", False):
                 spec, ncdf = extended_emission(FIDASIM, spec)
+            print('### spec is defined.')
     
         # Process 'tables' if not skipped
         if 'tables' not in skip_list:
             tables = start_tables(FIDASIM)
+            print('### tables is loaded.')
     
         # Process 'fields' if not skipped
         if 'fields' not in skip_list:
@@ -494,6 +496,7 @@ def input_prep(FIDASIM):
                 if "machine" not in FIDASIM:
                     raise KeyError("The key 'machine' or 'transp' must be defined")
                 fields = start_fields_machine(FIDASIM)
+            print('### fields are loaded.')
     
         # Process 'profiles' if not skipped
         if 'profiles' not in skip_list:
@@ -504,6 +507,7 @@ def input_prep(FIDASIM):
                 if "machine" not in FIDASIM:
                     raise KeyError("The key 'machine' or 'transp' must be defined")
                 profiles = start_profiles_machine(FIDASIM)
+            print('### profiles are loaded.')
     
         # Process 'nbi' if not skipped
         if 'nbi' not in skip_list:
@@ -514,21 +518,26 @@ def input_prep(FIDASIM):
                 if "machine" not in FIDASIM:
                     raise KeyError("The key 'machine' or 'transp' must be defined")
                 nbi = start_nbi_machine(FIDASIM)
+            print('### nbi is loaded.')
     
         # Process 'grid3d' if not skipped
         if 'grid3d' not in skip_list and fields is not None:
             grid3d = start_grid3d(FIDASIM, fields)
+            print('### grid3d is loaded.')
     
         # Process 'spec' further if able
         if spec is not None and grid3d is not None and fields is not None:
             from .los import grid_intersections
             spec = grid_intersections(spec, fields, grid3d)
+            print('### grid intersection is done.')
         
         if 'PSF' not in skip_list:
             PSF = start_PSF(FIDASIM)
+            print('### PSF is calculated.')
 
         if 'fbm' not in skip_list and 'fbm_file' in FIDASIM and fields is not None:
             fbm = start_fbm(FIDASIM, fields)
+            print('### fbm is calculated.')
 
     # Initialize simulation settings
     sim_settings = start_sim_settings(FIDASIM)
@@ -650,6 +659,7 @@ def extended_emission(FIDASIM, spec):
     spec['dlam'] = variable_check(FIDASIM, 'dlam', (float, int))
     spec['wavel'] = np.arange(spec['lambda_min'], spec['lambda_max'], spec['dlam'])
     spec['nlam'] = len(spec['wavel'])
+    
     return spec, ncdf
 
 def transp_check(FIDASIM):
@@ -723,6 +733,7 @@ def start_tables(FIDASIM):
 
     from .cr_model import load_tables
     tables = load_tables(path_to_tables)
+
     return tables
 
 def start_fields_transp(FIDASIM, transp):
@@ -782,6 +793,7 @@ def start_fields_machine(FIDASIM):
         )
     else:
         raise ValueError("Unsupported machine specified")
+
     return fields
 
 def start_profiles_transp(FIDASIM, transp):
@@ -817,11 +829,21 @@ def start_profiles_machine(FIDASIM):
 
         zimp_dict = {'Argon': 18, 'Boron': 5, 'Carbon': 6, 'Neon': 10, 'Nitrogen': 7, 'Oxygen': 8}
         zimps = [zimp_dict[imp] for imp in impurities]
-
-        from .input_preparation.W7X.plasma_profiles_from_pkl import plasma_profiles_from_pkl
-        profiles = plasma_profiles_from_pkl(file=file, impurities=impurities, zimps=zimps)
+        
+        try:
+            from pyfidasim.input_preparation.W7X import plasma_profiles
+            shot_number = variable_check(FIDASIM, "shot_num", str, optional=True, default='20180920.042')
+            t_start = variable_check(FIDASIM, "t_start", (float, int), optional=True, default=6.5)
+            t_stop = variable_check(FIDASIM, "t_stop", (float, int), optional=True, default=6.52)
+            profiles = plasma_profiles.get_plasma_profiles(shot_number, np.mean([t_start, t_stop])*1.e3, 
+                                                           use_cache = True)
+        except Exception as error:
+            print('Something went wrong when reading the profiles from W7X database:\n', error)
+            from .input_preparation.W7X.plasma_profiles_from_pkl import plasma_profiles_from_pkl
+            profiles = plasma_profiles_from_pkl(file = file, impurities=impurities, zimps=zimps)
     else:
         raise ValueError("Unsupported machine specified")
+
     return profiles
 
 def start_nbi_transp(FIDASIM, transp):
@@ -868,6 +890,7 @@ def start_nbi_machine(FIDASIM):
         nbi['ab'] = nbi_mass
     else:
         raise ValueError("Unsupported machine specified")
+
     return nbi
 
 def start_grid3d(FIDASIM, fields):
@@ -906,6 +929,7 @@ def start_grid3d(FIDASIM, fields):
         z_ran = z_ran,
         phi_ran = phi_ran
     )
+
     return grid3d
 
 def start_fbm(FIDASIM, fields):

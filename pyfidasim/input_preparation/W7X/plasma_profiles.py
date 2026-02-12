@@ -26,35 +26,39 @@ import warnings
 from pyfidasim.toolbox import radial_profile, load_dict, save_dict
 from pyfidasim.input_preparation.W7X import equilibrium
 
-try:
-    from w7xspec.oliford import TS_get_all
-    import w7xdia as w7xdia
-except (ModuleNotFoundError, ImportError):
-    print("Import error")
-    print("If not using local profile data clone and install w7xspec and w7xdia from\n \
-          https://git.ipp-hgw.mpg.de/boz/w7xdia\n https://git.ipp-hgw.mpg.de/olfo/w7xspec")
+from w7xspec.oliford import TS_get_all
+# import w7xdia as w7xdia
+# try:
+#     from w7xspec.oliford import TS_get_all
+#     import w7xdia as w7xdia
+# except (ModuleNotFoundError, ImportError):
+#     print("Import error")
+#     print("If not using local profile data clone and install w7xspec and w7xdia from\n \
+#           https://git.ipp-hgw.mpg.de/boz/w7xdia\n https://git.ipp-hgw.mpg.de/olfo/w7xspec")
 
 
 
 # decorator to cache plasma profiles locally
 def cache_profiles(function_to_cache):
     def wrapper(*args, **kwargs):
-        try: 
-            if kwargs['use_cache'] == False: use_cache = False
-        except Exception:
-            use_cache = True
-            
-        if use_cache:
-            file_id = args[0] + '_' +str( args[1] )
+        # try: 
+        #     if kwargs['use_cache'] == False: use_cache = False
+        # except Exception:
+        #     use_cache = True
+        if kwargs['use_cache']:
+        # if use_cache:
+            file_id = ''
+            file_id = [file_id + args[i] for i in range(len(args))][0]
+            # file_id = args[0] + '_' + str( args[1] )
             if not os.path.isdir('./profiles_cache'): os.mkdir('./profiles_cache')
             file = './profiles_cache/' + file_id + '.hdf5'
             if os.path.isfile(file):
-                #print('Load cached profile data from ' + file[0:-5])
+                print('Load cached profile data from ' + file[0:-5])
                 return load_dict(file)
             else:
                 profiles = function_to_cache(*args, **kwargs)
                 save_dict(profiles, file)
-                #print("Saved profiles to local cache at:" + os.getcwd() + "/profiles_cache")
+                print("Saved profiles to local cache at:" + os.getcwd() + "/profiles_cache")
         else:
             profiles = function_to_cache(*args, **kwargs)
         return profiles
@@ -62,7 +66,7 @@ def cache_profiles(function_to_cache):
 
 
 @cache_profiles
-def get_plasma_profiles(progID, time, ti_diagnostic='XICS', const_zeff=None, use_cache=True):
+def get_plasma_profiles(progID, time, ti_diagnostic='CXRS', const_zeff=None, use_cache=True):
     """
     Loads Thomson, XICS and CXRS data to fit Te, Ti and ne profiles. Fitting method lowess provided
     the w7xdia package. To get XICS data MDSplus needs to be installed. If zeff is None it will load
@@ -113,23 +117,25 @@ def get_plasma_profiles(progID, time, ti_diagnostic='XICS', const_zeff=None, use
     
     # Ti data + fit from CXRS or XICS measurements -------------------------------------------------
     if ti_diagnostic == 'CXRS':
+        from w7xdia import cxrs
         # head=None -> All lines of sight. Other analysis branch: BGSubtract
         spec, head = "ILS_Green", None
-        cx_data = w7xdia.cxrs.get_all(progID, spectrometer=spec, head=head, 
-                               analysisBranch="DualGauss", getConfig=True)
+        cx_data = cxrs.get_all(progID, spectrometer=spec, head=head, 
+                                      analysisBranch="Preferred", getConfig=True)
         if cx_data['versionDescription'] is not None:
             print("CXRS Data fit comment: '%s'" % cx_data['versionDescription'])
 
         #Get REff values from VMEC, extrapolated outside LCFS
-        w7xdia.cxrs.get_rEff(cx_data)
+        cxrs.get_rEff(cx_data)
         
         # fit cx data and interpolate on reff used in pyfidasim
         reff_fit, Ti = fit_cxrs_ti_profile(cx_data, time/1000)
-        Ti = interp1d(reff_fit, Ti)( reff ) 
+        Ti = interp1d(reff_fit, Ti)(reff)
+        
     
     elif ti_diagnostic == 'XICS':
         try:
-            import w7xdia.xics
+            from w7xdia import xics
         except Exception as e:
             print(e)
             print("Install MDSplus from: https://www.mdsplus.org/index.php/Introduction")
@@ -137,7 +143,7 @@ def get_plasma_profiles(progID, time, ti_diagnostic='XICS', const_zeff=None, use
             raise Exception("Error")
         
         # load data
-        t, reff_data, Ti_data, sigma, mask = w7xdia.xics.get_inverted_Ti(progID)
+        t, reff_data, Ti_data, sigma, mask = xics.get_inverted_Ti(progID)
         # select time point
         j = np.argmin(np.abs(t - time/1000))
         reff_data, Ti_data, sigma, mask = reff_data[:,j], Ti_data[:,j], sigma[:,j], mask[:,j]
@@ -146,11 +152,14 @@ def get_plasma_profiles(progID, time, ti_diagnostic='XICS', const_zeff=None, use
         print(" Unreliable XICS data points for reff > ", reff_data[unreliable[0]])
         # interpolate xics data
         Ti = np.interp(reff, reff_data, Ti_data)
-        
+    
+    if np.nanmax(Ti) > 1.e3:
+        Ti /= 1.e3 # keV
     
     # Flat line integrated zeff profile ------------------------------------------------------------
     if const_zeff is None:
-        t, zeff_data = w7xdia.zeff.get_zeff_signal(progID, return_errors=False, returnVersion=False)
+        from w7xdia import zeff
+        t, zeff_data =zeff.get_zeff_signal(progID, return_errors=False, returnVersion=False)
         flat_zeff = interp1d(t, zeff_data)(time/1000)
         print("Flat Zeff profile with line integrated data from archive. Value: " + str(flat_zeff))
     else:
@@ -174,6 +183,7 @@ def get_plasma_profiles(progID, time, ti_diagnostic='XICS', const_zeff=None, use
 
 def fit_thomson_profiles(ts_data, maxTime, fitting_window, n_edge):
     tsFit = dict()
+    from w7xdia import fits
     # use TS time point
     tsFit['time'] = ts_data['time'][(ts_data['time'] > 0) & (ts_data['time'] < maxTime)] 
 
@@ -218,7 +228,7 @@ def fit_thomson_profiles(ts_data, maxTime, fitting_window, n_edge):
 
             #Use w7xdia fitting to get a nice fit with ~5cm resolution
             xx = tsFit['rEff']
-            yy = w7xdia.fits.fit_profile_lowess(xx, x, y, yErr, window=fitting_window, power=1)
+            yy = fits.fit_profile_lowess(xx, x, y, yErr, window=fitting_window, power=1)
             yy[yy<0.] = 0.
 
             tsFit[param][iTF, :] = yy
@@ -227,7 +237,7 @@ def fit_thomson_profiles(ts_data, maxTime, fitting_window, n_edge):
 
 
 def fit_cxrs_ti_profile(cx_data, time):
-    import w7xdia
+    from w7xdia import fits
     # index j for valid data points
     j = np.where(np.isfinite(cx_data['nominalREff']))[0]
     # reorder channels by average valid R
@@ -243,7 +253,7 @@ def fit_cxrs_ti_profile(cx_data, time):
     
     #Use w7xdia fitting to get a nice fit with ~5cm resolution
     xx = np.linspace(0, 0.6, 100);
-    yy = w7xdia.fits.fit_profile_lowess(xx, x, y, yerr, window=0.05)
+    yy = fits.fit_profile_lowess(xx, x, y, yerr, window=0.05)
     return xx, yy
 
 
@@ -401,6 +411,7 @@ def create_arbitrary_profiles(s=None, Te=None, Ti=None, ne=None, zeff=None, ai=1
 
 
 def plot_profiles(profiles_dict, savefig=False):
-    from pyfidasim.toolbox import plot_profiles
+    from pyfidasim.plotting_routines import plot_profiles
+    # from pyfidasim.toolbox import plot_profiles
     plot_profiles(profiles_dict, savefig=savefig)
     

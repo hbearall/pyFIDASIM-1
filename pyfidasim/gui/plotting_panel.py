@@ -1,9 +1,9 @@
 # gui/plotting_panel.py
-from PyQt6.QtWidgets import (
+from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout,
     QCheckBox, QSpinBox, QLineEdit, QPushButton, QTabWidget, QLabel
 )
-from PyQt6.QtCore import pyqtSignal
+from PyQt5.QtCore import pyqtSignal
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 from .plotting_routines import (

@@ -1,9 +1,9 @@
 # gui/main_window.py
-from PyQt6.QtWidgets import (
+from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QPushButton, QPlainTextEdit,
     QSplitter, QMessageBox, QScrollArea, QHBoxLayout
 )
-from PyQt6.QtCore import QThread, Qt
+from PyQt5.QtCore import QThread, Qt
 
 # Import your project's modules
 from .input_panel import InputPanel
