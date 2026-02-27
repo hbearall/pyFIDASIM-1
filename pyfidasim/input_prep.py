@@ -508,7 +508,7 @@ def input_prep(FIDASIM):
                     raise KeyError("The key 'machine' or 'transp' must be defined")
                 profiles = start_profiles_machine(FIDASIM)
             print('### profiles are loaded.')
-    
+
         # Process 'nbi' if not skipped
         if 'nbi' not in skip_list:
             if FIDASIM.get('transp', False):
@@ -522,6 +522,9 @@ def input_prep(FIDASIM):
     
         # Process 'grid3d' if not skipped
         if 'grid3d' not in skip_list and fields is not None:
+            ##TODO: find a suitable place for beam_src_pos and beam_src_dir which are needed to calculate the u_range within the vessel
+            FIDASIM['beam_src_pos'] = nbi[nbi['sources'][0]]['source_position'] 
+            FIDASIM['beam_src_dir'] = nbi[nbi['sources'][0]]['direction']
             grid3d = start_grid3d(FIDASIM, fields)
             print('### grid3d is loaded.')
     
@@ -712,8 +715,9 @@ def start_spec_W7X(FIDASIM):
     new = variable_check(FIDASIM, "los_new", bool, optional=True, default=True)
 
     from .input_preparation.W7X.los_geometry import los_geometry
-    spec = los_geometry(shot=shot, head=head, file=file, default=default, new=new)
-
+    spec = los_geometry(head=head, file=file, default=default, new=new)
+    
+    spec['only_pi'] = variable_check(FIDASIM, 'only_pi', bool, optional=True, default=False)
     if not FIDASIM.get('calc_extended_emission', False):
         spec['dlam'] = variable_check(FIDASIM, 'dlam', (float, int))
         spec['lambda_min'] = variable_check(FIDASIM, 'lambda_min', (float, int))
@@ -783,10 +787,10 @@ def start_fields_machine(FIDASIM):
 
         from .input_preparation.W7X.equilibrium import equilibrium
         fields = equilibrium(
-            progID=progID,
-            woutpath=woutpath,
+            # progID=progID,
+            # woutpath=woutpath,
             vmecID=vmecID,
-            extended_vmec_factor=extended_vmec_factor,
+            # extended_vmec_factor=extended_vmec_factor,
             b0_factor=b0_factor,
             drz=drz,
             phi_ran=phi_ran
@@ -831,12 +835,14 @@ def start_profiles_machine(FIDASIM):
         zimps = [zimp_dict[imp] for imp in impurities]
         
         try:
-            from pyfidasim.input_preparation.W7X import plasma_profiles
-            shot_number = variable_check(FIDASIM, "shot_num", str, optional=True, default='20180920.042')
+            from .input_preparation.W7X import plasma_profiles
+            shot_number = variable_check(FIDASIM, "progID", str, optional=True, default='20180920.042')
             t_start = variable_check(FIDASIM, "t_start", (float, int), optional=True, default=6.5)
             t_stop = variable_check(FIDASIM, "t_stop", (float, int), optional=True, default=6.52)
+            print('Reading profiles from archiveDB: [%s: %.2f s to %.2f s]'%(shot_number, t_start, t_stop))
             profiles = plasma_profiles.get_plasma_profiles(shot_number, np.mean([t_start, t_stop])*1.e3, 
                                                            use_cache = True)
+            # print(profiles.keys())
         except Exception as error:
             print('Something went wrong when reading the profiles from W7X database:\n', error)
             from .input_preparation.W7X.plasma_profiles_from_pkl import plasma_profiles_from_pkl
@@ -887,18 +893,24 @@ def start_nbi_machine(FIDASIM):
             debug=debug,
             default=default
         )
-        nbi['ab'] = nbi_mass
+        # nbi['ab'] = nbi_mass
+        sources = variable_check(FIDASIM, 'nbi_sources', str, optional = True, default = 'Q7')
+        # nbi['sources'] = [sources]
+        if nbi[sources]['voltage'] > 1.e3:
+            nbi[sources]['voltage'] *= 1.e-3 # [kV]
+        nbi1 = {'ab': nbi_mass, 'sources': [sources], sources: nbi[sources]}
     else:
         raise ValueError("Unsupported machine specified")
 
-    return nbi
+    return nbi1
 
 def start_grid3d(FIDASIM, fields):
     drz = variable_check(FIDASIM, "grid_drz", (float, int), optional=True, default=2.0)
-    u_range = variable_check(FIDASIM, "u_range", list, optional=True, default=None)
-    if u_range is not None:
-        if len(u_range) != 2 or not all(isinstance(x, (float, int)) for x in u_range):
-            raise ValueError("The key 'u_range' must be a list of two floats/ints")
+    # u_range = variable_check(FIDASIM, "u_range", list, optional=True, default=None)
+    # if u_range is not None:
+    #     if len(u_range) != 2 or not all(isinstance(x, (float, int)) for x in u_range):
+    #         raise ValueError("The key 'u_range' must be a list of two floats/ints")
+    
     du = variable_check(FIDASIM, "du", (float, int), optional=True, default=1.0)
     dvw = variable_check(FIDASIM, "dvw", (float, int), optional=True, default=1.0)
     v_width = variable_check(FIDASIM, "v_width", (float, int), optional=True, default=5)
@@ -915,21 +927,24 @@ def start_grid3d(FIDASIM, fields):
     if phi_ran is not None:
         if len(phi_ran) != 2 or not all(isinstance(x, (float, int)) for x in phi_ran):
             raise ValueError("The key 'phi_ran' must be a list of two floats/ints")
+    ## beam position and beam direction to  
+    beam_src_pos = variable_check(FIDASIM, 'beam_src_pos', np.ndarray, optional=True, default=None)
+    beam_src_dir = variable_check(FIDASIM, 'beam_src_dir', np.ndarray, optional=True, default=None)
 
     from .grid3d import define_grid3d
     grid3d = define_grid3d(
         fields,
         drz=drz,
-        u_range=u_range,
+        # u_range=u_range,
         du=du,
         dvw=dvw,
         v_width=v_width,
         w_width=w_width,
         r_ran = r_ran,
         z_ran = z_ran,
-        phi_ran = phi_ran
+        phi_ran = phi_ran,
+        beam_src_pos = beam_src_pos, beam_src_dir = beam_src_dir
     )
-
     return grid3d
 
 def start_fbm(FIDASIM, fields):
@@ -971,6 +986,9 @@ def start_sim_settings(FIDASIM):
         bool, optional=True, default=True)
     sim_settings['seed'] = variable_check(FIDASIM, "seed", int, optional=True, default=-1)
     sim_settings['batch_marker'] = variable_check(FIDASIM, "batch_marker", int, optional=True, default=10000)
+    #below are added by Xiang
+    # sim_settings['calc_density'] = variable_check(FIDASIM, 'calc_density', bool, optional = True, default = True)
+    
     return sim_settings
 
 def _input_massaging(sim_settings, spec, fields, nbi, ncdf=None, fbm=None, PSF=None):
@@ -1050,7 +1068,7 @@ def _input_massaging(sim_settings, spec, fields, nbi, ncdf=None, fbm=None, PSF=N
 # Define cleanup functions for dictionaries
 def cleanup_spec(spec):
     keys_to_keep = {
-        'grid_cell_crossed_by_los', 'dl_per_grid_intersection',
+        'grid_cell_crossed_by_los', 'dl_per_grid_intersection', 'only_pi',
         'los_grid_intersection_indices', 'los_grid_intersection_weight',
         'nlos', 'los_pos', 'los_vec', 'lambda_min', 'nlam', 'dlam',
         'sigma_to_pi_ratio', 'output_individual_stark_lines', 'lambda_max',
@@ -1059,7 +1077,7 @@ def cleanup_spec(spec):
     return {k: spec[k] for k in keys_to_keep if k in spec}
 
 def cleanup_profiles(profiles):
-    keys_to_keep = {'s', 'te', 'ti', 'dene', 'denimp', 'omega', 'ai', 'denp'}
+    keys_to_keep = {'s', 'te', 'ti', 'dene', 'denimp', 'omega', 'ai', 'denp', 'zeff'}
     return {k: profiles[k] for k in keys_to_keep if k in profiles}
 
 def cleanup_tables(tables):
@@ -1077,7 +1095,7 @@ def cleanup_fields(fields):
         'Zmin', 'Zmax', 'Z', 'dZ', 'nz', 'phimin', 'phimax', 'phi', 'dphi',
         'nphi', 'flux_ns', 'flux_ds', 'flux_s_min', 'Br', 'Bz', 'Bphi',
         'Rsurf', 'Zsurf', 's_surf', 'flux_nr', 'flux_dvol', 'nsym', 'Rmean',
-        'btipsign'
+        'btipsign', 'Er'
     }
     return {k: fields[k] for k in keys_to_keep if k in fields}
 

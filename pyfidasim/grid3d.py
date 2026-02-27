@@ -94,10 +94,36 @@ def get_uvw_grid_indices(uvw_start,uvw_ray,dl,first_step,\
 
     return iu_arr, iv_arr, iw_arr
     
+def create_flux_surface_mesh(points_grid):
+    """
+    points_grid: numpy array of shape (n_phi, n_theta, 3)
+    where points_grid[i, j] = [x, y, z]
+    """
+    n_phi, n_theta, _ = points_grid.shape
+    
+    # Flatten the grid to a list of vertices
+    vertices = points_grid.reshape(-1, 3)
+    faces = []
+    for i in range(n_phi):
+        for j in range(n_theta):
+            # Current point indices
+            curr_phi = i
+            next_phi = (i + 1) % n_phi # Close the torus toroidally
+            curr_theta = j
+            next_theta = (j + 1) % n_theta # Close the loop poloidally
+            # Map 2D grid indices to 1D vertex indices
+            v1 = curr_phi * n_theta + curr_theta
+            v2 = next_phi * n_theta + curr_theta
+            v3 = next_phi * n_theta + next_theta
+            v4 = curr_phi * n_theta + next_theta
+            # Create two triangles for each grid quad
+            faces.append([v1, v2, v3])
+            faces.append([v1, v3, v4])
+    return vertices, faces
 
-def define_grid3d(fields, drz=2., nphi = None, u_range=None,du=1.,dvw=1., v_width=5,w_width=5, r_ran = None, z_ran = None, phi_ran = None):
-
-
+def define_grid3d(fields, drz=2., nphi = None, u_range=None,du=1.,
+                  dvw=1., v_width=5,w_width=5, r_ran = None, z_ran = None, phi_ran = None,
+                  beam_src_pos = None, beam_src_dir = None):
     grid3d = {}
     grid3d['nsym'] = fields['nsym']
     grid3d['dphi_sym'] = fields['dphi_sym']
@@ -107,7 +133,6 @@ def define_grid3d(fields, drz=2., nphi = None, u_range=None,du=1.,dvw=1., v_widt
     else:
         grid3d['phimin'] = fields['phimin']
         grid3d['phimax'] = fields['phimax']
-    
     
     if nphi:
         grid3d["nphi"] = nphi
@@ -137,7 +162,6 @@ def define_grid3d(fields, drz=2., nphi = None, u_range=None,du=1.,dvw=1., v_widt
     # grid center positions
     grid3d['R_c'] = grid3d['R_bnd'] + 0.5 * grid3d['dR']
 
-
     # define Z-output array   
     if z_ran:
         grid3d["Zmin"] = z_ran[0]
@@ -154,6 +178,23 @@ def define_grid3d(fields, drz=2., nphi = None, u_range=None,du=1.,dvw=1., v_widt
     
     grid3d['dvol'] = grid3d['dZ'] * 0.5*grid3d['dphi']*((grid3d['R_c']+0.5*grid3d['dR'])**2-(grid3d['R_c']-0.5*grid3d['dR'])**2)
 
+    if beam_src_pos is not None and beam_src_dir is not None:
+        
+        ''' find the intersection of the beam with the vessel.'''
+        import trimesh
+        ind_smax = fields['s_surf'].argmax()
+        xsurf = 1.e-2*np.cos(fields['phi'])*fields['Rsurf'][ind_smax,].T
+        ysurf = 1.e-2*np.sin(fields['phi'])*fields['Rsurf'][ind_smax,].T
+        points_grid = np.stack([xsurf.T, ysurf.T, fields['Zsurf'][ind_smax,]], axis = -1)
+        vertices, faces = create_flux_surface_mesh(points_grid)
+        flux_mesh = trimesh.Trimesh(vertices = vertices, faces = faces)
+        locations, _, _ = flux_mesh.ray.intersects_location(ray_origins = np.array(1.e-2*beam_src_pos).reshape((1,-1)), 
+                                                            ray_directions = np.array(beam_src_dir).reshape((1,-1)))
+        locations *= 1.e2 # cm
+        grid3d['beam_in_vessel'] = locations
+        u_range = [np.floor(np.linalg.norm(locations[0,] - beam_src_pos)), 
+                   np.ceil(np.linalg.norm(locations[1,] - beam_src_pos))]
+        print('Re-define the u_range by including the range of beam in the vessel only.', u_range)
     ## beam aligned grid       
     if u_range:
         ## define parameters of a beam-aligned grid (uvw coordinates)
@@ -172,7 +213,6 @@ def define_grid3d(fields, drz=2., nphi = None, u_range=None,du=1.,dvw=1., v_widt
         grid3d['dv']=(grid3d['vmax']-grid3d['vmin'])/grid3d['nv']
         grid3d['dw']=(grid3d['wmax']-grid3d['wmin'])/grid3d['nw']  
         
-
         grid3d['uc']=np.linspace(grid3d['umin']+0.5*grid3d['du'],grid3d['umax']-0.5*grid3d['du'],grid3d['nu'])
         grid3d['vc']=np.linspace(grid3d['vmin']+0.5*grid3d['dv'],grid3d['vmax']-0.5*grid3d['dv'],grid3d['nv'])    
         grid3d['wc']=np.linspace(grid3d['wmin']+0.5*grid3d['dw'],grid3d['wmax']-0.5*grid3d['dw'],grid3d['nw'])       

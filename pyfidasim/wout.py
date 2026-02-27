@@ -2,7 +2,6 @@ from pathlib import Path
 import numpy as np
 from scipy.io import netcdf
 
-
 class readWout:
     """
     A class to read wout netCDF files from VMEC

@@ -596,4 +596,3 @@ def pyfidasim_core_routine(
             
     return(density,density_uvw,intensity,photon_origin,density1d) # this marker leaves the plasma. stop the cx-loop
 
-

@@ -46,10 +46,11 @@ def cache_profiles(function_to_cache):
         # except Exception:
         #     use_cache = True
         if kwargs['use_cache']:
+            file_id = '%s_%dms'%(args[0], args[1])
         # if use_cache:
-            file_id = ''
-            file_id = [file_id + args[i] for i in range(len(args))][0]
-            # file_id = args[0] + '_' + str( args[1] )
+            # file_id = ''
+            # file_id = [file_id + args[i] for i in range(len(args))][0]
+            
             if not os.path.isdir('./profiles_cache'): os.mkdir('./profiles_cache')
             file = './profiles_cache/' + file_id + '.hdf5'
             if os.path.isfile(file):

@@ -1,5 +1,6 @@
 import numpy as np
 from pyfidasim.toolbox import load_dict, save_dict
+from pathlib import Path
 
 def get_reference_equilibrium(program = '20180823.035', time = [1.,2.]):
     import archivedb as db
@@ -35,10 +36,15 @@ def get_reference_equilibrium(program = '20180823.035', time = [1.,2.]):
     
     return vmecID, b0scaling
 
-def get_wout(vmecID = 'w7x_ref_66', woutpath = './Data/', savenc = True):
+def get_wout(vmecID = 'w7x_ref_66', 
+             woutpath = '', 
+             savenc = True):
     from osa import Client
     vmec = Client('http://esb.ipp-hgw.mpg.de:8280/services/vmec_v5?wsdl')
     wout_netcdf = vmec.service.getVmecOutputNetcdf(vmecID)
+    if woutpath == '':
+        # woutpath = './Data/'
+        woutpath = '//share.ipp-hgw.mpg.de/documents/xiha/Documents/W7X_Analysis/BES/pyFIDASIM/Data/'
     if woutpath[-1] != '/':
         woutpath += '/'
     woutpath += 'wout_'+vmecID+'.nc'
@@ -86,7 +92,6 @@ def equilibrium(progID='', timerange=[], woutpath = '', vmecID = '',
     '''
 
     print('-=== Generating equilibrium ===-')
-    nsym=5 ## define the symmetry of W7X
     
     if progID != '':
         vmecID, b0_factor = get_reference_equilibrium(progID)
@@ -94,7 +99,7 @@ def equilibrium(progID='', timerange=[], woutpath = '', vmecID = '',
         wout, _ = get_wout(vmecID, woutpath)
     elif vmecID != '':
         print(vmecID)
-        wout, _ = get_wout(vmecID, woutpath)
+        wout, woutpath = get_wout(vmecID, woutpath)
     elif woutpath != '':
         # vmecID = 'userDefinedWout'
         vmecID = woutpath
@@ -105,7 +110,7 @@ def equilibrium(progID='', timerange=[], woutpath = '', vmecID = '',
         vmecID = '_' + vmecID[0:vmecID.find('.nc')]
         # woutpath = woutpath
         print(vmecID)
-        print(woutpath)
+        print('woutpath:', woutpath)
     else:
         print('No info found for equilibrium generation.')
         print('Use standard wout file (standard config)')
@@ -120,15 +125,16 @@ def equilibrium(progID='', timerange=[], woutpath = '', vmecID = '',
              'drz': drz}
     
     if phi_ran:
-        phi_ran_string='_phi_'+str(np.round(phi_ran[0]/np.pi,2))+'-'+str(np.round(phi_ran[1]/np.pi,2))+'pi'
+        phi_ran_string='_phi_'+str(np.round(phi_ran[0]/np.pi,2))+'_'+str(np.round(phi_ran[1]/np.pi,2))+'pi'
     else:
         phi_ran_string='_phi_full'
-    fields_file = 'Data/fields_id'+vmecID+'_drz_'+str(drz)+phi_ran_string+'_'+str(b0_factor)+'.pkl'
-
+    # fields_file = './Data/'+vmecID+'_drz_'+str(drz)+phi_ran_string+'_'+str(b0_factor)+'.pkl'
+    ind = woutpath.find('.nc')
+    fields_file = woutpath[:ind] + '_drz_' + str(drz) + phi_ran_string + '_' + str(b0_factor) + '.pkl'
 
     ### See whether an sdict 3D equilibrium already exists
     ## if yes, load it
-    try:
+    if Path(fields_file).is_file():
         fields = load_dict(fields_file)
         for i in sdict:
             if isinstance(sdict[i], (list, np.ndarray)): ## if sdict is a list or array
@@ -141,12 +147,13 @@ def equilibrium(progID='', timerange=[], woutpath = '', vmecID = '',
                     raise ValueError
                 if sdict[i] != fields[i]: ## if the two are not the same, return
                     raise ValueError
+        # print('fields are created already. Read the file from: ', fields_file)
     ### if not, we need to generate it!
-    except (ValueError, FileNotFoundError):
+    else:
         print("Recreating fields, may take some time")
         from pyfidasim._fields import generate_fields
         fields = generate_fields(woutpath, 
-                               nsym, phi_ran=phi_ran,
+                               nsym = 5, phi_ran=phi_ran,
                                drz=sdict['drz'],
                                calc_brzphi=sdict['calc_brzphi'],
                                extended_vmec_factor=sdict['extended_vmec_factor'],

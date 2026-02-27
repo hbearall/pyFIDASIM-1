@@ -71,7 +71,7 @@ def plot_geometry_3d(fields, spec, nbi=None, grid3d=None, plot_crossed_cells=Fal
                 ax.plot(x, y, z, color='black', lw=0.8, alpha=0.3)
 
             # Plot Poloidal Slices (gray)
-            for p in phis[::8]:
+            for p in phis[::4]:
                 ax.plot(R_prof*np.cos(p), R_prof*np.sin(p), Z_prof, color='gray', lw=0.5, alpha=0.2)
 
     # 2. Plot LOS
@@ -86,20 +86,46 @@ def plot_geometry_3d(fields, spec, nbi=None, grid3d=None, plot_crossed_cells=Fal
             end = start + los_vec[i] * dist
             
             ax.plot([start[0], end[0]], [start[1], end[1]], [start[2], end[2]], 
-                    color=colors[i], lw=1.5)
-            ax.scatter(start[0], start[1], start[2], color=colors[i], s=15)
-
+                    color=colors[i], lw = .8)
+            ax.scatter(start[0], start[1], start[2], color=colors[i], s = 8)
+    if plot_crossed_cells:
+        import matplotlib as matplotlib
+        colarr = matplotlib.cm.rainbow(np.linspace(0, 1, spec['nlos']))
+        for ilos in range(spec['nlos']):
+            npos = 0
+            for ipos in range(spec['los_grid_intersection_indices'][ilos,].shape[0]):
+                if not np.all(spec['los_grid_intersection_indices'][ilos,ipos,] == 0):
+                    npos += 1
+            # npos = len(spec['los_grid_intersection_indices'][ilos, :, 0])
+            xx = np.empty(npos)
+            yy = np.empty(npos)
+            zz = np.empty(npos)
+            for ii in range(npos):
+                ir = spec['los_grid_intersection_indices'][ilos, ii, 0]
+                iz = spec['los_grid_intersection_indices'][ilos, ii, 1]
+                iphi = spec['los_grid_intersection_indices'][ilos, ii, 2]
+                
+                xx[ii] = grid3d['R_c'][ir] * \
+                    np.cos(grid3d['phi_c'][iphi] - grid3d['rotate_phi_grid'])
+                yy[ii] = grid3d['R_c'][ir] * \
+                    np.sin(grid3d['phi_c'][iphi] - grid3d['rotate_phi_grid'])
+                zz[ii] = grid3d['Z_c'][iz]
+            ax.scatter(xx, yy, zz, color=colarr[ilos], marker='.', )
     # 3. Plot NBI
     if nbi is not None:
         for src_name in nbi['sources']:
             src = nbi[src_name]
             pos = src['source_position']
             direc = src['direction']
-            length = 600
-            end = pos + direc * length
-            ax.plot([pos[0], end[0]], [pos[1], end[1]], [pos[2], end[2]], 
-                    color='red', lw=3, label=f'NBI {src_name}')
-            ax.scatter(pos[0], pos[1], pos[2], color='darkred', s=50, marker='^')
+            pos_start = pos + direc * grid3d['umin']
+            pos_end = pos + direc * grid3d['umax']
+            ax.plot([pos_start[0], pos_end[0]], [pos_start[1], pos_end[1]], [pos_start[2], pos_end[2]],
+                    color = 'red', lw = 3, label = f'NBI {src_name}')
+            # length = 800
+            # end = pos + direc * length
+            # ax.plot([pos[0], end[0]], [pos[1], end[1]], [pos[2], end[2]], 
+            #         color='red', lw=3, label=f'NBI {src_name}')
+            # ax.scatter(pos[0], pos[1], pos[2], color='darkred', s=50, marker='^')
 
     ax.set_xlabel('X [cm]')
     ax.set_ylabel('Y [cm]')
@@ -140,7 +166,7 @@ def plot_spectra_interactive(spec, labels=['full', 'half', 'third', 'halo'], sca
             l, = ax.plot(spec['wavel'], y_data, label=label.capitalize(), color=colors[i], lw=2)
             lines.append({'line': l, 'comp_idx': comp_idx})
             
-            curr_max = np.max(y_data)
+            curr_max = np.nanmax(y_data)
             if curr_max > max_y: max_y = curr_max
 
     # Formatting
@@ -319,7 +345,8 @@ def plot_magnetic_equilibrium(fields):
     
     # 1. Flux Coordinate s
     # s array is [R, Z, Phi]. We want [Z, R] for plotting over meshgrid(R, Z)
-    s_map = fields['s'][:, :, 0].T 
+    ind_phi = fields['s'].shape[-1]//2
+    s_map = fields['s'][:, :, ind_phi].T 
     
     # Plot contours
     # Levels: Focus on 0 to 1.2
@@ -328,17 +355,19 @@ def plot_magnetic_equilibrium(fields):
     
     # LCFS Highlight (s=1.0)
     # 1. Contour approach
-    ax1.contour(RR, ZZ, s_map, levels=[1.0], colors='red', linewidths=2, label='LCFS')
+    ax1.contour(RR, ZZ, s_map, levels=[1.0], colors='red', linewidths=2)
     
     # 2. Explicit Rsurf approach (Ground Truth Overlay)
     # This verifies if the grid interpolation matches the definition
     if 'Rsurf' in fields:
         idx_lcfs = np.argmin(np.abs(fields['s_surf'] - 1.0))
         # Rsurf is [s, phi, theta] -> [theta]
-        R_lcfs = fields['Rsurf'][idx_lcfs, 0, :]
-        Z_lcfs = fields['Zsurf'][idx_lcfs, 0, :]
+        R_lcfs = fields['Rsurf'][idx_lcfs, ind_phi, :]
+        Z_lcfs = fields['Zsurf'][idx_lcfs, ind_phi, :]
         ax1.plot(R_lcfs, Z_lcfs, 'w--', lw=1.5, alpha=0.7, label='Parametric LCFS')
-
+    ax1.annotate(r'$\phi\sim$%.1f $^o$'%(np.degrees(fields['phi'][ind_phi])), 
+                (0.08,0.1), xycoords='axes fraction', fontsize='medium', 
+                bbox = dict(boxstyle="round", fc="0.98"))
     ax1.set_title("Normalized Flux Coordinate $s$")
     ax1.set_xlabel("R [cm]")
     ax1.set_ylabel("Z [cm]")
@@ -349,9 +378,9 @@ def plot_magnetic_equilibrium(fields):
 
     # 2. Magnetic Field Magnitude |B|
     # B = sqrt(Br^2 + Bz^2 + Bphi^2)
-    Br = fields['Br'][:, :, 0].T
-    Bz = fields['Bz'][:, :, 0].T
-    Bphi = fields['Bphi'][:, :, 0].T
+    Br = fields['Br'][:, :, ind_phi].T
+    Bz = fields['Bz'][:, :, ind_phi].T
+    Bphi = fields['Bphi'][:, :, ind_phi].T
     B_mag = np.sqrt(Br**2 + Bz**2 + Bphi**2)
 
     cp2 = ax2.contourf(RR, ZZ, B_mag, levels=25, cmap='plasma')

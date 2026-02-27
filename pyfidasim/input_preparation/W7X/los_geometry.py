@@ -81,7 +81,7 @@ def new_LOS_selection_w7x():
              'AEM21_HPPS8:07', 'AEM21_HPPS8:08', 'AEM21_HPPS8:09']
     return losOn
 
-def los_geometry(shot = '20180823.035',head='AEA',file='',default=False,spectrometers = ['ILS_Green'], new = False):
+def los_geometry(head='AEA',file='',default=False,spectrometers = ['ILS_Green'], new = False):
 
     if default:
         ## -----------------------------------------------------
@@ -93,7 +93,6 @@ def los_geometry(shot = '20180823.035',head='AEA',file='',default=False,spectrom
             los_names = active_LOS_selection_w7x()
         los_info = read_active_LOS_information_w7x(file=file)
 
-        
         if np.size(head)>1:
             nlos = np.int64(len(head))
             los_vec = np.zeros((nlos, 3))
@@ -219,6 +218,6 @@ def los_geometry(shot = '20180823.035',head='AEA',file='',default=False,spectrom
 # test input
 ##############
 if __name__ == '__main__':
-    spec1 = los_geometry(shot = '20180920.042', spectrometers = ['ILS_Green','AUG2','AUG1'], head = 'AE')
+    spec1 = los_geometry(spectrometers = ['ILS_Green','AUG2','AUG1'], head = 'AE')
     #spec2 = los_geometry(head='AEA',default=True,file='../../../examples/W7X/Data/op12b_ils_geometry.txt', shot = '20180920.042')
     #bi_parameters('20180920.042', t_start = [6.5], t_stop = [6.52], debug = True)

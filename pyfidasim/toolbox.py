@@ -128,18 +128,24 @@ def load_dict(filename):
         raise FileNotFoundError(f'{filename.as_posix()} does not exist')
     print(f'Loading {filename.as_posix()}')
     
-    with open(filename, 'rb') as f:
-        head = f.read(16)
-        if head.startswith(b'\x89HDF'):
-            print('This is a hdf5 file')
-            data_dict = load_dict_hdf5(filename)
-        elif head.startswith(b'\x80'):
-            print('This is a pkl file')
-            try:
+    try:
+        import joblib
+        data_dict = joblib.load(filename)
+    except:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        print(f"Exception Type: {exc_type}")
+        print(f"Exception Message: {exc_value}")
+        print(f"Traceback: {exc_traceback}")
+            
+        with open(filename, 'rb') as f:
+            head = f.read(16)
+            if head.startswith(b'\x89HDF'):
+                print('This is a hdf5 file')
+                data_dict = load_dict_hdf5(filename)
+            elif head.startswith(b'\x80'):
+                print('This is a pkl file')
                 data_dict = pickle.load(f)
-            except:
-                import joblib
-                data_dict = joblib.load(filename)
+                
     return data_dict
 
 def save_dict(data_dict, filename):

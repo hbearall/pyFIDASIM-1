@@ -229,10 +229,8 @@ def grid_intersections(spec, fields, grid3d):
     Routine to find intersection lengths of the LOS with the 3D grid.
     '''
 
-
-
     # Define step length for grid cell intersection determination
-    dl = grid3d['dR'] / 20.0
+    dl = grid3d['dR'] / 50.0
 
     # Define storage arrays
     spec['grid_cell_crossed_by_los'] = np.zeros((grid3d['nR'], grid3d['nZ'], grid3d['nphi']), dtype=bool)
