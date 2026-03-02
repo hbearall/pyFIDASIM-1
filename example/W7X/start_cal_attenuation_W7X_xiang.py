@@ -29,8 +29,7 @@ fidasim['calc_PSF'] = False
 fidasim['calc_spectra'] = True
 fidasim['calc_density'] = True # If True, stores beam/halo neutral density on the standard machine grid (R, Z, Phi)
 fidasim['calc_rzp_dens'] = True
-# fidasim['calc_uvw'] = True
-fidasim['calc_uvw_dens'] = True
+fidasim['calc_uvw'] = True
 fidasim['calc_extended_emission'] = False
 fidasim['respawun_if_aperture_is_hit'] = True
 fidasim['seed'] = 12345 # Random number generator seed. Set to -1 for random runs, or a fixed integer for reproducibility
@@ -54,9 +53,11 @@ fidasim['los_pos'] = spec['los_pos']
 fidasim['los_vec'] = spec['los_vec']
 fidasim['los_name'] = spec['losname']
 fidasim['only_pi'] = False
-spec['dlam'] = 1.e-2 # nm
-spec['lambda_min'] = wavelen_range[0]
-spec['lambda_max'] = wavelen_range[1]
+fidasim['dlam'] = 1.e-2 # nm
+fidasim['lambda_min'] = wavelen_range[0]
+fidasim['lambda_max'] = wavelen_range[1]
+# fidasim['output_individual_stark_lines'] = True
+del spec
 
 '''setup the equilibrium'''
 vmecID, b0_scaling = get_reference_equilibrium(fidasim['progID'])
@@ -95,6 +96,10 @@ fidasim['nbi_sources'] = 'Q7'
 
 from pyfidasim.input_prep import input_prep
 sim_settings,spec,tables,fields,profiles,nbi,grid3d,ncdf,PSF,fbm = input_prep(fidasim)
+# Placeholders
+ncdf = {'active': False, 'lambda0': 656.1, 'trans': 1, 'l_to_dwp': 1, 'spectrum_extended': False, 'cdfvars': np.zeros((1,1,1))}
+PSF = {'image_pos': 1, 'image_vec': 1, 'image_blur': 0, 'los_image_arr': 0, 'n_rand': 0, 'f_lens': 1}
+fbm = {'afbm': 0, 'fbm': np.zeros((1,1,1,1)), 'denf': np.zeros((1,1,1)), 'btipsign': -1, 'emin':0,'eran':0,'nenergy':0,'energy':np.zeros(1),'dE':0,'pmin':0,'pran':0,'npitch':0,'pitch':np.zeros(1),'dP':0}
 
 if 'denimp' not in profiles.keys(): # impurity density
     zimp = tables['zimps'][0]
@@ -102,11 +107,13 @@ if 'denimp' not in profiles.keys(): # impurity density
     profiles['denimp'] = np.zeros((1,len(profiles['s'])))
     profiles['denimp'][0,:]=profiles['dene'] * (profiles['zeff'] - 1) / (zimp**2 - zimp)
     profiles['denp']=profiles['dene'] - profiles['denimp'][0,:]*zimp
-
+# profiles['denimp'] *= 1.e1
 # -------------------------------
 # -- Plot LOS and NBI -----------
 # -------------------------------
-
+'''
+fields['Er'], 
+'''
 from pyfidasim.plotting_routines import plot_geometry_3d, plot_spectra_interactive, plot_midplane_heatmap, plot_profiles, plot_magnetic_equilibrium
 fig_w7x_geo = plot_geometry_3d(fields, spec, nbi=nbi, grid3d=grid3d, plot_crossed_cells = False)
 fig_w7x_geo.show()
@@ -142,63 +149,4 @@ fig_dens.show()
 # from pyfidasim.plotting_routines import plot_u_density
 # plot_u_density(grid3d)
 
-# # -------------------------------
-# # -- pyFIDASIM inputs -----------
-# # -------------------------------
 
-# fidasim = {}
-# fidasim['FIDASIM_check'] = True
-# fidasim['directory'] = 'comp_data'
-# fidasim['runid'] = '141648E01'
-# fidasim['geqdsk'] = 'g141648.00185'
-# fidasim['grid_drz'] = 1.0
-# fidasim['u_range'] = [980,1200]
-# fidasim['v_width'] = 120.0
-# fidasim['w_width'] = 120.0
-# fidasim['phi_ran'] = [0.20*np.pi,1.20*np.pi]
-# fidasim['nmarker'] = 10000
-# fidasim['seed'] = 12345
-# fidasim['calc_halo'] = True
-# fidasim['calc_uvw'] = True
-# fidasim["batch_marker"] = fidasim["nmarker"]
-
-# from pyfidasim.input_prep import input_prep
-# sim_settings,spec,tables,fields,profiles,nbi,grid3d,ncdf,PSF,fbm = input_prep(fidasim)
-
-# # -------------------------------
-# # -- Plot LOS and NBI -----------
-# # -------------------------------
-# fig_geo = plot_geometry_3d(fields, spec, nbi=nbi, grid3d=grid3d, plot_crossed_cells=False)
-# fig_geo.show()
-
-# # ----------------------------
-# # -- run pyFIDASIM -----------
-# # ----------------------------
-# import time
-
-# from pyfidasim.main import calc_attenuation
-
-# t1 = time.time()
-# grid3d,spec=calc_attenuation(sim_settings,profiles,nbi,spec,fields,grid3d,tables,ncdf,PSF,fbm)
-# t2 = time.time()
-
-# print("Time taken: ",(t2-t1))
-
-# # -----------------------------
-# # Plot Beam Emission Spectra
-# # -----------------------------
-# if 'intens' in spec:
-#     fig_spec = plot_spectra_interactive(spec, labels=['full', 'half', 'third'])
-#     fig_spec.show()
-
-# # -----------------------------
-# # Plot Radial Density Profiles
-# # -----------------------------
-# fig_dens = plot_midplane_heatmap(grid3d, fields)
-# fig_dens.show()
-
-# # -----------------------------
-# # Plot Beam-Path Density Profiles
-# # -----------------------------
-# from pyfidasim.plotting_routines import plot_u_density
-# plot_u_density(grid3d)

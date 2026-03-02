@@ -651,6 +651,7 @@ def extended_emission(FIDASIM, spec):
     file_path = os.path.join(tables_path, 'orbital_ncdf_data', filename)
     cdfvars, lambda0, trans, l_to_dwp = read_netCDF_stark(file_path)
     ncdf = {
+        'active': True,
         "cdfvars": cdfvars,
         "lambda0": lambda0,
         "trans": trans,
@@ -984,10 +985,8 @@ def start_sim_settings(FIDASIM):
     sim_settings['calc_extended_emission'] = variable_check(FIDASIM, "calc_extended_emission", bool, optional=True, default=False)
     sim_settings['respawn_if_aperture_is_hit'] = variable_check(FIDASIM, "respawn_if_aperture_is_hit",
         bool, optional=True, default=True)
-    sim_settings['seed'] = variable_check(FIDASIM, "seed", int, optional=True, default=-1)
+    sim_settings['seed'] = variable_check(FIDASIM, "seed", int, optional=True, default = -1)
     sim_settings['batch_marker'] = variable_check(FIDASIM, "batch_marker", int, optional=True, default=10000)
-    #below are added by Xiang
-    # sim_settings['calc_density'] = variable_check(FIDASIM, 'calc_density', bool, optional = True, default = True)
     
     return sim_settings
 

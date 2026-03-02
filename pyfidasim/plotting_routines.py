@@ -362,9 +362,14 @@ def plot_magnetic_equilibrium(fields):
     if 'Rsurf' in fields:
         idx_lcfs = np.argmin(np.abs(fields['s_surf'] - 1.0))
         # Rsurf is [s, phi, theta] -> [theta]
-        R_lcfs = fields['Rsurf'][idx_lcfs, ind_phi, :]
-        Z_lcfs = fields['Zsurf'][idx_lcfs, ind_phi, :]
-        ax1.plot(R_lcfs, Z_lcfs, 'w--', lw=1.5, alpha=0.7, label='Parametric LCFS')
+        if fields['Rsurf'].shape[1] == 1:
+            ax1.plot(fields['Rsurf'][idx_lcfs,0,], fields['Zsurf'][idx_lcfs,0,], 'w--', lw=1.5, alpha=0.7, label='Parametric LCFS')
+        else:
+            ax1.plot(fields['Rsurf'][idx_lcfs, ind_phi,], fields['Zsurf'][idx_lcfs, ind_phi,], 'w--', lw = 1.5, alpha = 0.7, label = 'Parametric LCFS')
+            
+        # R_lcfs = fields['Rsurf'][idx_lcfs, ind_phi, :]
+        # Z_lcfs = fields['Zsurf'][idx_lcfs, ind_phi, :]
+        
     ax1.annotate(r'$\phi\sim$%.1f $^o$'%(np.degrees(fields['phi'][ind_phi])), 
                 (0.08,0.1), xycoords='axes fraction', fontsize='medium', 
                 bbox = dict(boxstyle="round", fc="0.98"))
@@ -386,7 +391,9 @@ def plot_magnetic_equilibrium(fields):
     cp2 = ax2.contourf(RR, ZZ, B_mag, levels=25, cmap='plasma')
     # Overlay LCFS
     ax2.contour(RR, ZZ, s_map, levels=[1.0], colors='white', linestyles='--', linewidths=1.5)
-    
+    ax2.annotate(r'$\phi\sim$%.1f $^o$'%(np.degrees(fields['phi'][ind_phi])), 
+                (0.08,0.1), xycoords='axes fraction', fontsize='medium', 
+                bbox = dict(boxstyle="round", fc="0.98"))
     ax2.set_title("Magnetic Field Magnitude $|B|$")
     ax2.set_xlabel("Major Radius R [cm]")
     ax2.set_aspect('equal')
