@@ -349,20 +349,50 @@ def add_shot_beam_fractions(shot_number, beam_fractions, source, overwrite = Fal
     save_dict(data, path_name + file_name)
     
 def calc_arot_brot(direction):
-    assert(direction.size == 3)
-    y = direction[2]
-    x = np.sqrt(np.sum(direction[:]**2))
-    b = np.arctan2(y, x)
-    Arot = np.array([[np.cos(b), 0., np.sin(b)],
-                     [0., 1., 0.],
-                     [-np.sin(b), 0., np.cos(b)]])
-    y = direction[1]
-    x = direction[0]
-    a = np.arctan2(y, x)# - np.pi
-    Brot = np.array([[np.cos(a), -np.sin(a), 0.],
-                     [np.sin(a),  np.cos(a), 0.],
-                     [0., 0., 1.]])
+    # 1. Normalize the direction vector
+    norm = np.linalg.norm(direction)
+    if norm == 0:
+        return np.eye(3), np.eye(3)
+    d = direction / norm 
+
+    # 2. Azimuth (a): Rotation around Z
+    # Angle in the XY plane
+    a = np.arctan2(d[1], d[0])
+
+    # 3. Elevation (b): Rotation around Y
+    # Note: We use the horizontal magnitude for the x-component 
+    # and -d[2] because a positive rotation around Y usually 
+    # tilts the Z-axis toward the X-axis.
+    horizontal_mag = np.sqrt(d[0]**2 + d[1]**2)
+    b = np.arctan2(d[2], horizontal_mag) 
+
+    ## Rotation around Y (Pitch)
+    Arot = np.array([[ np.cos(b), 0., -np.sin(b)],
+                     [ 0.,        1., 0.       ],
+                     [np.sin(b), 0., np.cos(b)]])
+    ## Rotation around Z (Yaw)
+    Brot = np.array([[ np.cos(a), -np.sin(a), 0.],
+                     [ np.sin(a),  np.cos(a), 0.],
+                     [ 0.,         0.,        1.]])
+
     return Arot, Brot
+# def calc_arot_brot(direction):
+#     assert(direction.size == 3)
+#     y = direction[2]
+#     x = np.sqrt(np.sum(direction[:]**2))
+#     b = np.arctan2(y, x)
+#     ## rotation around Y
+#     Arot = np.array([[np.cos(b), 0., np.sin(b)],
+#                      [0., 1., 0.],
+#                      [-np.sin(b), 0., np.cos(b)]])
+#     y = direction[1]
+#     x = direction[0]
+#     a = np.arctan2(y, x)# - np.pi
+#     ## rotation around Z
+#     Brot = np.array([[np.cos(a), -np.sin(a), 0.],
+#                      [np.sin(a),  np.cos(a), 0.],
+#                      [0., 0., 1.]])
+#     return Arot, Brot
 
 
 def nbi_geometry():
@@ -432,7 +462,6 @@ def nbi_geometry():
     Q5_geometry['uvw_xyz_rot'] = Brot @ Arot
     
     
-    
     Q6_geometry = copy.deepcopy(default_geometry)
     Q6_geometry['ID'] = 'Q6'
     Q6_geometry['source_position'] = np.array(
@@ -447,9 +476,10 @@ def nbi_geometry():
     Q7_geometry['source_position'] = np.array([104.27, 1317.11, 90.67])  # cm
     Q7_geometry['direction'] = np.array([-0.1085, -0.99, -.085])
     Arot, Brot = calc_arot_brot(Q7_geometry['direction'])
+    
     Q7_geometry['Arot'] = Arot
     Q7_geometry['Brot'] = Brot
-    Q7_geometry['uvw_xyz_rot'] = Brot @ Arot######TODO 
+    Q7_geometry['uvw_xyz_rot'] = Brot @ Arot
     Q7_geometry['aperture_1_distance']= 626.9   # cm
     Q7_geometry['aperture_1_offset'] = np.array([1.7,-4.8])
     Q7_geometry['aperture_1_size']   = np.array([34.1, 67.0])
@@ -512,10 +542,12 @@ def W7X_nbi(shot_number = '20180920.042', t_start = 6.5, t_stop = 6.52, fraction
         nbi[src]['focal_length'] = nbigeom[src]['focal_length']
         nbi[src]['ion_source_size'] = nbigeom[src]['ion_source_size']
         nbi[src]['source_position'] = nbigeom[src]['source_position']
+        nbi[src]['Arot'] = nbigeom[src]['Arot']
+        nbi[src]['Brot'] = nbigeom[src]['Brot']
         
         nbi[src]['current_fractions'] = nbiparams[src]['fraction']
         nbi[src]['power'] = nbiparams[src]['power']
-        nbi[src]['voltage'] = nbiparams[src]['voltage']
+        nbi[src]['voltage'] = nbiparams[src]['voltage']*1.e-3 if nbiparams[src]['voltage'] > 1.e3 else nbiparams[src]['voltage'] # [kV]
     
     return nbi
     

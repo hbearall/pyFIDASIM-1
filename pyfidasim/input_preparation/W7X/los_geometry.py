@@ -157,7 +157,7 @@ def los_geometry(head='AEA',file='',default=False,spectrometers = ['ILS_Green'],
         
         pi_sigma_values = pickle.load(filehandler)
         filehandler.close()
-
+        # print(pi_sigma_values)
         # read in the LoS info from the data base for all passed spectrometers
         for spectrometer in spectrometers:
 

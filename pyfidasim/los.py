@@ -18,47 +18,92 @@ def conditional_numba(skip_numba=False):
             return func
     return decorator
 
-def nbi_intersection(spec, nbigeom, source_arr):
-    # Select the first source in use
-    ii = 0
-    source_key = source_arr[ii]
-    source = nbigeom['sources'][source_key]
+def nbi_intersection(spec, nbigeom):
+    rzp_los = np.empty((np.shape(nbigeom['sources']) + spec['los_vec'].shape))
+    distance = np.empty_like(rzp_los[:,:,0])
+    for ii, kk in enumerate(nbigeom['sources']):
+    # source_key = source_arr[ii]
+    # source = nbigeom['sources'][source_key]
 
     # Extract necessary parameters
-    los_vec = spec['los_vec']          # Shape: (nlos, 3)
-    los_pos = spec['los_pos']        # Shape: (nlos, 3)
-    direction = nbigeom[source]['direction']    # Shape: (3,)
-    source_position = nbigeom[source]['source_position']  # Shape: (3,)
+        los_vec = spec['los_vec']          # Shape: (nlos, 3)
+        los_pos = spec['los_pos']        # Shape: (nlos, 3)
+        direction = nbigeom[kk]['direction']    # Shape: (3,)
+        source_position = nbigeom[kk]['source_position']  # Shape: (3,)
+    
+        # Compute cross products
+        # n = cross(los_vec, direction) for all LOS
+        n = np.cross(los_vec, direction)    # Shape: (nlos, 3)
+    
+        # n2 = cross(direction, n) for all LOS
+        n2 = np.cross(direction, n)        # Shape: (nlos, 3)
+    
+        # Compute the vector from LOS starting points to source position
+        delta = source_position - los_pos  # Shape: (nlos, 3)
+    
+        # Compute dot products for numerator and denominator
+        numerator = np.einsum('ij,ij->i', delta, n2)    # Shape: (nlos,)
+        denominator = np.einsum('ij,ij->i', los_vec, n2)  # Shape: (nlos,)
+    
+        # Compute scalar factors for each LOS
+        scalar_factors = (numerator / denominator)[:, np.newaxis]  # Shape: (nlos, 1)
+    
+        # Compute intersection points
+        cpoint1 = los_pos + scalar_factors * los_vec  # Shape: (nlos, 3)
+    
+        # Compute distances from LOS starting points to intersection points
+        distance[ii,] = np.linalg.norm(cpoint1 - los_pos, axis=1)  # Shape: (nlos,)
+    
+        # Compute cylindrical coordinates
+        # R_los = np.sqrt(cpoint1[:, 0]**2 + cpoint1[:, 1]**2)   # Shape: (nlos,)
+        # Z_los = cpoint1[:, 2]                                  # Shape: (nlos,)
+        # phi_los = np.arctan2(cpoint1[:, 1], cpoint1[:, 0])    # Shape: (nlos,)
+        rzp_los[ii,:,0] = np.sqrt(cpoint1[:, 0]**2 + cpoint1[:, 1]**2)   # Shape: (nlos,)
+        rzp_los[ii,:,1] = cpoint1[:, 2]
+        rzp_los[ii,:,2] = np.arctan2(cpoint1[:, 1], cpoint1[:, 0])    # Shape: (nlos,)
+    return rzp_los, distance
 
-    # Compute cross products
-    # n = cross(los_vec, direction) for all LOS
-    n = np.cross(los_vec, direction)    # Shape: (nlos, 3)
+# def nbi_intersection(spec, nbigeom, source_arr):
+#     # Select the first source in use
+#     ii = 0
+#     source_key = source_arr[ii]
+#     source = nbigeom['sources'][source_key]
 
-    # n2 = cross(direction, n) for all LOS
-    n2 = np.cross(direction, n)        # Shape: (nlos, 3)
+#     # Extract necessary parameters
+#     los_vec = spec['los_vec']          # Shape: (nlos, 3)
+#     los_pos = spec['los_pos']        # Shape: (nlos, 3)
+#     direction = nbigeom[source]['direction']    # Shape: (3,)
+#     source_position = nbigeom[source]['source_position']  # Shape: (3,)
 
-    # Compute the vector from LOS starting points to source position
-    delta = source_position - los_pos  # Shape: (nlos, 3)
+#     # Compute cross products
+#     # n = cross(los_vec, direction) for all LOS
+#     n = np.cross(los_vec, direction)    # Shape: (nlos, 3)
 
-    # Compute dot products for numerator and denominator
-    numerator = np.einsum('ij,ij->i', delta, n2)    # Shape: (nlos,)
-    denominator = np.einsum('ij,ij->i', los_vec, n2)  # Shape: (nlos,)
+#     # n2 = cross(direction, n) for all LOS
+#     n2 = np.cross(direction, n)        # Shape: (nlos, 3)
 
-    # Compute scalar factors for each LOS
-    scalar_factors = (numerator / denominator)[:, np.newaxis]  # Shape: (nlos, 1)
+#     # Compute the vector from LOS starting points to source position
+#     delta = source_position - los_pos  # Shape: (nlos, 3)
 
-    # Compute intersection points
-    cpoint1 = los_pos + scalar_factors * los_vec  # Shape: (nlos, 3)
+#     # Compute dot products for numerator and denominator
+#     numerator = np.einsum('ij,ij->i', delta, n2)    # Shape: (nlos,)
+#     denominator = np.einsum('ij,ij->i', los_vec, n2)  # Shape: (nlos,)
 
-    # Compute distances from LOS starting points to intersection points
-    distance = np.linalg.norm(cpoint1 - los_pos, axis=1)  # Shape: (nlos,)
+#     # Compute scalar factors for each LOS
+#     scalar_factors = (numerator / denominator)[:, np.newaxis]  # Shape: (nlos, 1)
 
-    # Compute cylindrical coordinates
-    R_los = np.sqrt(cpoint1[:, 0]**2 + cpoint1[:, 1]**2)   # Shape: (nlos,)
-    Z_los = cpoint1[:, 2]                                  # Shape: (nlos,)
-    phi_los = np.arctan2(cpoint1[:, 1], cpoint1[:, 0])    # Shape: (nlos,)
+#     # Compute intersection points
+#     cpoint1 = los_pos + scalar_factors * los_vec  # Shape: (nlos, 3)
 
-    return R_los, Z_los, phi_los, distance
+#     # Compute distances from LOS starting points to intersection points
+#     distance = np.linalg.norm(cpoint1 - los_pos, axis=1)  # Shape: (nlos,)
+
+#     # Compute cylindrical coordinates
+#     R_los = np.sqrt(cpoint1[:, 0]**2 + cpoint1[:, 1]**2)   # Shape: (nlos,)
+#     Z_los = cpoint1[:, 2]                                  # Shape: (nlos,)
+#     phi_los = np.arctan2(cpoint1[:, 1], cpoint1[:, 0])    # Shape: (nlos,)
+
+#     return R_los, Z_los, phi_los, distance
 
 def calc_s_along_los(los_pos,los_vec,fields,dl=0.1):  
     # Find intersection lengths of the LOS with the grid.
@@ -67,7 +112,6 @@ def calc_s_along_los(los_pos,los_vec,fields,dl=0.1):
     for kk in range(3):
         xyz_arr[kk, :] = los_pos[kk] + dist_arr[:] * los_vec[kk]
         
-
         # get the R,Z,phi positions from the xyz array of positions
     R = np.sqrt(xyz_arr[0, :]**2 + xyz_arr[1, :]**2)
     Z = xyz_arr[2, :]
@@ -245,7 +289,7 @@ def grid_intersections(spec, fields, grid3d):
 
     for ilos in range(spec['nlos']):
         # Calculate s-positions along LOS
-        dist_arr, xyz_arr, s_arr = calc_s_along_los(spec['los_pos'][ilos, :], spec['los_vec'][ilos, :], fields, dl=dl)
+        dist_arr, xyz_arr, s_arr = calc_s_along_los(spec['los_pos'][ilos,], spec['los_vec'][ilos,], fields, dl=dl)
 
         # Compute dl_arr
         dl_arr = np.diff(dist_arr)
@@ -371,8 +415,8 @@ def uvw_grid_intersections(spec, fields, grid3d, source_array, nbigeom):
     spec['uvw_dl_per_grid_intersection'] = {}
     dl=0.1 #1 mm
     
-    for i in source_array:
-        source = nbigeom['sources'][i]
+    for source in source_array:
+        # source = nbigeom['sources'][i]
     
         spec['uvw_grid_cell_crossed_by_los'][source] = np.zeros([grid3d['nu'], grid3d['nv'], grid3d['nw'], spec['nlos']], dtype=bool)
         spec['uvw_dl_per_grid_intersection'][source] = np.zeros([grid3d['nu'], grid3d['nv'], grid3d['nw'], spec['nlos']])

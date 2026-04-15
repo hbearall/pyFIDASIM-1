@@ -472,16 +472,6 @@ def input_prep(FIDASIM):
         # Handle 'skip' option
         skip_list = FIDASIM.get('skip', [])
     
-        # Process 'spec' if not skipped
-        if 'spec' not in skip_list:
-            if FIDASIM.get("machine") == "W7X":
-                spec = start_spec_W7X(FIDASIM)
-            else:
-                spec = start_spec(FIDASIM)
-            if FIDASIM.get("calc_extended_emission", False):
-                spec, ncdf = extended_emission(FIDASIM, spec)
-            print('### spec is defined.')
-    
         # Process 'tables' if not skipped
         if 'tables' not in skip_list:
             tables = start_tables(FIDASIM)
@@ -527,7 +517,17 @@ def input_prep(FIDASIM):
             FIDASIM['beam_src_dir'] = nbi[nbi['sources'][0]]['direction']
             grid3d = start_grid3d(FIDASIM, fields)
             print('### grid3d is loaded.')
-    
+
+        # Process 'spec' if not skipped
+        if 'spec' not in skip_list:
+            if FIDASIM.get("machine") == "W7X":
+                spec = start_spec_W7X(FIDASIM)
+            else:
+                spec = start_spec(FIDASIM)
+            if FIDASIM.get("calc_extended_emission", False):
+                spec, ncdf = extended_emission(FIDASIM, spec)
+            print('### spec is defined.')
+            
         # Process 'spec' further if able
         if spec is not None and grid3d is not None and fields is not None:
             from .los import grid_intersections
@@ -714,11 +714,19 @@ def start_spec_W7X(FIDASIM):
     file = variable_check(FIDASIM, "los_file", str, optional=True, default='')
     default = variable_check(FIDASIM, "los_default", bool, optional=True, default=False)
     new = variable_check(FIDASIM, "los_new", bool, optional=True, default=True)
-
-    from .input_preparation.W7X.los_geometry import los_geometry
-    spec = los_geometry(head=head, file=file, default=default, new=new)
     
-    spec['only_pi'] = variable_check(FIDASIM, 'only_pi', bool, optional=True, default=False)
+    if head == 'los_BES':
+        import functionsBES as bes
+        vmecID = variable_check(FIDASIM, 'vmecID', str, optional = True, default = 'w7x_ref_169')
+        spec = bes.los_FBES(spacing = 1.65e-2, vmecid = vmecID)
+    elif head == 'MSE_LOS':
+        import functionsBES as bes
+        spec = bes.LOS_MSE_op24()
+    else:
+        from .input_preparation.W7X.los_geometry import los_geometry
+        spec = los_geometry(head=head, file=file, default=default, new=new)
+        spec['only_pi'] = variable_check(FIDASIM, 'only_pi', bool, optional=True, default=False)
+        
     if not FIDASIM.get('calc_extended_emission', False):
         spec['dlam'] = variable_check(FIDASIM, 'dlam', (float, int))
         spec['lambda_min'] = variable_check(FIDASIM, 'lambda_min', (float, int))
@@ -894,16 +902,16 @@ def start_nbi_machine(FIDASIM):
             debug=debug,
             default=default
         )
-        # nbi['ab'] = nbi_mass
-        sources = variable_check(FIDASIM, 'nbi_sources', str, optional = True, default = 'Q7')
-        # nbi['sources'] = [sources]
-        if nbi[sources]['voltage'] > 1.e3:
-            nbi[sources]['voltage'] *= 1.e-3 # [kV]
-        nbi1 = {'ab': nbi_mass, 'sources': [sources], sources: nbi[sources]}
+        nbi['ab'] = nbi_mass
+        return nbi
+        # sources = variable_check(FIDASIM, 'nbi_sources', str, optional = True, default = 'Q7')
+        # # nbi['sources'] = [sources]
+        # if nbi[sources]['voltage'] > 1.e3:
+        #     nbi[sources]['voltage'] *= 1.e-3 # [kV]
+        #     return {'ab': nbi_mass, 'sources': [sources], sources: nbi[sources]}
     else:
         raise ValueError("Unsupported machine specified")
 
-    return nbi1
 
 def start_grid3d(FIDASIM, fields):
     drz = variable_check(FIDASIM, "grid_drz", (float, int), optional=True, default=2.0)

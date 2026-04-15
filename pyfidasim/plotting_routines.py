@@ -21,6 +21,7 @@ plt.rcParams.update({
     'ytick.major.size': 5,
     'figure.dpi': 120,
 })
+linecolor = plt.get_cmap('Dark2')
 
 def set_aspect_equal_3d(ax):
     """Fix equal aspect bug for 3D plots in Matplotlib."""
@@ -113,19 +114,44 @@ def plot_geometry_3d(fields, spec, nbi=None, grid3d=None, plot_crossed_cells=Fal
             ax.scatter(xx, yy, zz, color=colarr[ilos], marker='.', )
     # 3. Plot NBI
     if nbi is not None:
-        for src_name in nbi['sources']:
+        from .toolbox import rotate_uvw
+        for src_idx, src_name in enumerate(nbi['sources']):
             src = nbi[src_name]
             pos = src['source_position']
             direc = src['direction']
             pos_start = pos + direc * grid3d['umin']
             pos_end = pos + direc * grid3d['umax']
             ax.plot([pos_start[0], pos_end[0]], [pos_start[1], pos_end[1]], [pos_start[2], pos_end[2]],
-                    color = 'red', lw = 3, label = f'NBI {src_name}')
-            # length = 800
-            # end = pos + direc * length
-            # ax.plot([pos[0], end[0]], [pos[1], end[1]], [pos[2], end[2]], 
-            #         color='red', lw=3, label=f'NBI {src_name}')
-            # ax.scatter(pos[0], pos[1], pos[2], color='darkred', s=50, marker='^')
+                    color = linecolor(src_idx), lw = 3, label = f'NBI {src_name} axis in vessel')
+            pos_start0 = pos + direc * abs(grid3d['umin'] - 100.)
+            ax.plot([pos_start0[0], pos_start[0]], [pos_start0[1], pos_start[1]], [pos_start0[2], pos_start[2]],
+                    color = 'grey', linestyle = 'dashed', lw = 3, label = f'beam {src_name} axis')
+            if 'uvw_xyz_rot' in src.keys():
+                corners = np.array([
+                    [grid3d['umin'], -src['ion_source_size'][0]/2, -src['ion_source_size'][1]/2],
+                    [grid3d['umin'],  src['ion_source_size'][0]/2, -src['ion_source_size'][1]/2],
+                    [grid3d['umin'],  src['ion_source_size'][0]/2,  src['ion_source_size'][1]/2],
+                    [grid3d['umin'], -src['ion_source_size'][0]/2,  src['ion_source_size'][1]/2],
+                    [grid3d['umax'], -src['ion_source_size'][0]/2, -src['ion_source_size'][1]/2],
+                    [grid3d['umax'],  src['ion_source_size'][0]/2, -src['ion_source_size'][1]/2],
+                    [grid3d['umax'],  src['ion_source_size'][0]/2,  src['ion_source_size'][1]/2],
+                    [grid3d['umax'], -src['ion_source_size'][0]/2,  src['ion_source_size'][1]/2],
+                    ])
+                
+                global_corners = np.array([pos + src['uvw_xyz_rot'] @ p for p in corners])
+                
+                from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+                faces = [
+                        [global_corners[0], global_corners[1], global_corners[2], global_corners[3]], # Back
+                        [global_corners[4], global_corners[5], global_corners[6], global_corners[7]], # Front
+                        [global_corners[0], global_corners[1], global_corners[5], global_corners[4]], # Bottom
+                        [global_corners[2], global_corners[3], global_corners[7], global_corners[6]], # Top
+                        [global_corners[1], global_corners[2], global_corners[6], global_corners[5]], # Right
+                        [global_corners[0], global_corners[3], global_corners[7], global_corners[4]]  # Left
+                    ]
+                poly3d = Poly3DCollection(faces, facecolors = linecolor(src_idx), edgecolors = None, alpha = 0.1,  label = f'beam {src_name} volume')
+                ax.add_collection3d(poly3d)
+                
 
     ax.set_xlabel('X [cm]')
     ax.set_ylabel('Y [cm]')
@@ -152,7 +178,8 @@ def plot_spectra_interactive(spec, labels=['full', 'half', 'third', 'halo'], sca
     
     # Store line objects
     lines = []
-    colors = ['royalblue', 'forestgreen', 'darkorchid', 'firebrick']
+    colors = plt.get_cmap('Dark2')
+    # colors = ['royalblue', 'forestgreen', 'darkorchid', 'firebrick']
     mapping = {'full': 0, 'half': 1, 'third': 2, 'halo': 3}
     
     # Initial plot (Channel 0)
@@ -163,17 +190,24 @@ def plot_spectra_interactive(spec, labels=['full', 'half', 'third', 'halo'], sca
         comp_idx = mapping.get(label)
         if comp_idx < spec['intens'].shape[0]:
             y_data = spec['intens'][comp_idx, init_chan, :] / scale_factor
-            l, = ax.plot(spec['wavel'], y_data, label=label.capitalize(), color=colors[i], lw=2)
-            lines.append({'line': l, 'comp_idx': comp_idx})
+            l, = ax.plot(spec['wavel'], y_data, label=label.capitalize(), color=colors(i%len(colors.colors)), lw=0.7)
+            fc = ax.fill_between(spec['wavel'], np.zeros(y_data.shape), 
+                                 spec['intens'][comp_idx, init_chan, :] / scale_factor, 
+                                 color = colors(i%len(colors.colors)), alpha = 0.2)
             
+            lines.append({'line': l, 'comp_idx': comp_idx, 'fill': fc, 'color': colors(i%len(colors.colors))})
+    
             curr_max = np.nanmax(y_data)
             if curr_max > max_y: max_y = curr_max
-
+    l1, = ax.plot(spec['wavel'], spec['intens'][:3, init_chan,].sum(axis = 0)/scale_factor, linestyle = 'dashed', lw = 0.4, color = colors(i+1))
+    lines[0]['envolop']=l1
+        
     # Formatting
     los_name = spec['losname'][init_chan] if 'losname' in spec else f"LOS #{init_chan}"
     ax.set_title(f"Spectra - {los_name}")
     ax.set_xlabel('Wavelength [nm]')
     ax.set_ylabel(r'Intensity [$10^{18}$ ph/(s sr nm m$^2$)]')
+    ax.minorticks_on()
     ax.set_xlim(spec['lambda_min'], spec['lambda_max'])
     ax.set_ylim(0, max_y * 1.2 if max_y > 0 else 1.0)
     ax.legend(title="Component", loc='upper right', frameon=False)
@@ -200,7 +234,12 @@ def plot_spectra_interactive(spec, labels=['full', 'half', 'third', 'halo'], sca
             y_new = spec['intens'][item['comp_idx'], idx, :] / scale_factor
             item['line'].set_ydata(y_new)
             if np.max(y_new) > local_max: local_max = np.max(y_new)
-        
+            item['fill'].remove()
+            item['fill'] = ax.fill_between(spec['wavel'], np.zeros(y_new.shape), y_new, 
+                                           color = item['color'], alpha = 0.2)
+        # lines['envolop'].remove()
+        lines[0]['envolop'].set_ydata(spec['intens'][:3, idx, ].sum(axis = 0) / scale_factor)
+
         new_name = spec['losname'][idx] if 'losname' in spec else f"LOS #{idx}"
         ax.set_title(f"Spectra - {new_name}")
         ax.set_ylim(0, local_max * 1.2 if local_max > 0 else 1.0)
@@ -209,7 +248,7 @@ def plot_spectra_interactive(spec, labels=['full', 'half', 'third', 'halo'], sca
 
     slider.on_changed(update)
     fig._slider = slider 
-    return fig
+    return fig, ax_slider
 
 def plot_midplane_heatmap(grid3d, fields, energy_indices=[0, 1, 2]):
     """
@@ -267,10 +306,10 @@ def plot_midplane_heatmap(grid3d, fields, energy_indices=[0, 1, 2]):
     ax.set_title(f"Midplane Beam Density (Z={grid3d['Z_c'][z_idx]:.1f} cm)")
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
-    ax.legend(loc='upper right', framealpha=0.9, fontsize=10)
+    ax.legend(loc='lower right', framealpha=0.7, fontsize=12)
     plt.tight_layout()
     
-    return fig
+    return fig, ax
 
 def plot_profiles(profiles, savefig=False):
     """Plots the 1D Kinetic Profiles."""
