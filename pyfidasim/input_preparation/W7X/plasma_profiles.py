@@ -100,13 +100,13 @@ def get_plasma_profiles(progID, time, ti_diagnostic='CXRS', const_zeff=None, use
     # reff = np.linspace(0, 0.53, 60)
     # s = (reff / 0.53)**2
     
-    # ne and Te profiles from Thomson measurements -------------------------------------------------
+    # ne and Te profiles from Thomson measurements ---------------------------------------
     
     # get thomson data
-    thomson_data = TS_get_all(progID)
+    thomson_data = TS_get_all(progID, cutBeforeShot = True)
 
-    # fit profiles
-    fit = fit_thomson_profiles(thomson_data, 2*time/1000, fitting_window=0.05, n_edge=0)
+    # fit profiles replay 2*time/1000 with time because 2*time/1000 causes an error oftenly
+    fit = fit_thomson_profiles(thomson_data, 2*time/1.e3, fitting_window=0.03, n_edge=0.)
     reff_fit, ne, Te = fit['rEff'], fit['ne'], fit['Te']
     
     # select time point of interest
@@ -115,8 +115,7 @@ def get_plasma_profiles(progID, time, ti_diagnostic='CXRS', const_zeff=None, use
     ne = interp1d(reff_fit, ne[index,:])( reff ) * 1e13  # 1/cm^3
     Te = interp1d(reff_fit, Te[index,:])( reff )         # keV
     
-    
-    # Ti data + fit from CXRS or XICS measurements -------------------------------------------------
+    # Ti data + fit from CXRS or XICS measurements ---------------------------------------
     if ti_diagnostic == 'CXRS':
         from w7xdia import cxrs
         # head=None -> All lines of sight. Other analysis branch: BGSubtract
@@ -130,7 +129,7 @@ def get_plasma_profiles(progID, time, ti_diagnostic='CXRS', const_zeff=None, use
         cxrs.get_rEff(cx_data)
         
         # fit cx data and interpolate on reff used in pyfidasim
-        reff_fit, Ti = fit_cxrs_ti_profile(cx_data, time/1000)
+        reff_fit, Ti = fit_cxrs_ti_profile(cx_data, time/1000.)
         Ti = interp1d(reff_fit, Ti)(reff)
         
     
@@ -186,9 +185,8 @@ def fit_thomson_profiles(ts_data, maxTime, fitting_window, n_edge):
     tsFit = dict()
     from w7xdia import fits
     # use TS time point
-    tsFit['time'] = ts_data['time'][(ts_data['time'] > 0) & (ts_data['time'] < maxTime)] 
-
-    tsFit['rEff'] = np.linspace(0, 0.7, 100)
+    tsFit['time'] = ts_data['time'][(ts_data['time'] > 0) & (ts_data['time'] < maxTime)]
+    tsFit['rEff'] = np.linspace(0, 0.65, 100)
     for param in ['ne', 'Te']: 
         tsFit[param] =  np.nan * np.ones((len(tsFit['time']), len(tsFit['rEff'])))
     tsFit['inFit'] = np.zeros((len(tsFit['time']), len(ts_data['rEff']))) > 0
@@ -199,7 +197,7 @@ def fit_thomson_profiles(ts_data, maxTime, fitting_window, n_edge):
     for iTF in range(0, len(tsFit['time'])) :
         #nearest TS data time point, (might be exact)
         iTTS = np.argmin((ts_data['time'] - tsFit['time'][iTF])**2)
-
+        
         for k, param in enumerate(['ne', 'Te']): 
 
             #local vars
@@ -229,9 +227,12 @@ def fit_thomson_profiles(ts_data, maxTime, fitting_window, n_edge):
 
             #Use w7xdia fitting to get a nice fit with ~5cm resolution
             xx = tsFit['rEff']
-            yy = fits.fit_profile_lowess(xx, x, y, yErr, window=fitting_window, power=1)
-            yy[yy<0.] = 0.
-
+            try:
+                yy = fits.fit_profile_lowess(xx, x, y, yErr, window=fitting_window, power=1)
+                yy[yy<0.] = 0.
+            except:
+                print('failed in fitting at %.4f s '%tsFit['time'][iTF])
+                yy = np.zeros(xx.shape)
             tsFit[param][iTF, :] = yy
             tsFit['iTS'][iTF] = iTTS
     return tsFit
@@ -251,7 +252,6 @@ def fit_cxrs_ti_profile(cx_data, time):
     x = cx_data['nominalREff'][j]
     y = cx_data['Ti'][:,j][iT,:]
     yerr = cx_data['TiErr'][:,j][iT,:]
-    
     #Use w7xdia fitting to get a nice fit with ~5cm resolution
     xx = np.linspace(0, 0.6, 100);
     yy = fits.fit_profile_lowess(xx, x, y, yerr, window=0.05)

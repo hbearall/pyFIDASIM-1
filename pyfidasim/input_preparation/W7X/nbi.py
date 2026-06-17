@@ -199,7 +199,10 @@ def nbi_parameters(shot_number = '20180920.042', t_start = 6.5, t_stop = 6.52, f
                     print('Read beam_fractions from W7X database for shot:%s'%shot_number)
                 except:
                     beam_fractions = read_beam_fractions(shot_number, sour)
-                    print('Found beam fractions fro local file for shot: %s'%shot_number)
+                    print('Found beam fractions from local file for shot: %s'%shot_number)
+                else:
+                    beam_fractions = [0.3, 0.5, 0.2] 
+                    print('Use the default beam fractions: [0.3, 0.5, 0.2]')
                 print(beam_fractions)
             else:
                 beam_fractions = fractions

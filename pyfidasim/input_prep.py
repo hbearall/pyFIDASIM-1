@@ -513,8 +513,8 @@ def input_prep(FIDASIM):
         # Process 'grid3d' if not skipped
         if 'grid3d' not in skip_list and fields is not None:
             ##TODO: find a suitable place for beam_src_pos and beam_src_dir which are needed to calculate the u_range within the vessel
-            FIDASIM['beam_src_pos'] = nbi[nbi['sources'][0]]['source_position'] 
-            FIDASIM['beam_src_dir'] = nbi[nbi['sources'][0]]['direction']
+            # FIDASIM['beam_src_pos'] = nbi[nbi['sources'][0]]['source_position'] 
+            # FIDASIM['beam_src_dir'] = nbi[nbi['sources'][0]]['direction']
             grid3d = start_grid3d(FIDASIM, fields)
             print('### grid3d is loaded.')
 
@@ -717,8 +717,8 @@ def start_spec_W7X(FIDASIM):
     
     if head == 'los_BES':
         import functionsBES as bes
-        vmecID = variable_check(FIDASIM, 'vmecID', str, optional = True, default = 'w7x_ref_169')
-        spec = bes.los_FBES(spacing = 1.65e-2, vmecid = vmecID)
+        # vmecID = variable_check(FIDASIM, 'vmecID', str, optional = True, default = 'w7x_ref_169')
+        spec = bes.los_FBES(spacing = 1.56e-2, slgrid_shape = ['square', [8, 8]], vmecid = 169) # use vmecid = 169 for the designed BES los
     elif head == 'MSE_LOS':
         import functionsBES as bes
         spec = bes.LOS_MSE_op24()
@@ -849,8 +849,8 @@ def start_profiles_machine(FIDASIM):
             t_start = variable_check(FIDASIM, "t_start", (float, int), optional=True, default=6.5)
             t_stop = variable_check(FIDASIM, "t_stop", (float, int), optional=True, default=6.52)
             print('Reading profiles from archiveDB: [%s: %.2f s to %.2f s]'%(shot_number, t_start, t_stop))
-            profiles = plasma_profiles.get_plasma_profiles(shot_number, np.mean([t_start, t_stop])*1.e3, 
-                                                           use_cache = True)
+            profiles = plasma_profiles.get_plasma_profiles(shot_number, t_start*1.e3, 
+                                                           use_cache = False)
             # print(profiles.keys())
         except Exception as error:
             print('Something went wrong when reading the profiles from W7X database:\n', error)
@@ -903,12 +903,12 @@ def start_nbi_machine(FIDASIM):
             default=default
         )
         nbi['ab'] = nbi_mass
-        return nbi
-        # sources = variable_check(FIDASIM, 'nbi_sources', str, optional = True, default = 'Q7')
-        # # nbi['sources'] = [sources]
-        # if nbi[sources]['voltage'] > 1.e3:
-        #     nbi[sources]['voltage'] *= 1.e-3 # [kV]
-        #     return {'ab': nbi_mass, 'sources': [sources], sources: nbi[sources]}
+        # return nbi
+        sources = variable_check(FIDASIM, 'nbi_sources', str, optional = True, default = None)
+        if sources:# nbi['sources'] = [sources]
+            return {'ab': nbi_mass, 'sources': [sources], sources: nbi[sources]}
+        else:
+            return nbi
     else:
         raise ValueError("Unsupported machine specified")
 

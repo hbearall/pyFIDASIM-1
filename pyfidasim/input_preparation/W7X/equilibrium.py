@@ -47,7 +47,7 @@ def get_wout(vmecID = 'w7x_ref_66',
         woutpath = '//share.ipp-hgw.mpg.de/documents/xiha/Documents/W7X_Analysis/BES/pyFIDASIM/Data/'
     if woutpath[-1] != '/':
         woutpath += '/'
-    woutpath += 'wout_'+vmecID+'.nc'
+    woutpath += 'wout_'+vmecID+'.txt'
     if savenc:
         file = open(woutpath, 'wb')
         file.write(wout_netcdf)

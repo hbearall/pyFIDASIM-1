@@ -14,8 +14,8 @@ import functionsBES as bes
 # plt.close('all')
 colors = plt.get_cmap('Dark2')
 
-shotnum = '20180919.039'
-twin_profile = [3.55, 3.6]
+expID = '20250515.028'#'20180919.039'
+tcal = 3.7#[3.55, 3.6]
 LOS_head = 'MSE_LOS'#'los_BES'#'AEA21_A:'
 
 wavelen_range = [652., 662.] # nm
